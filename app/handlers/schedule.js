@@ -67,7 +67,7 @@ const SCHEDULE_COMMANDS = [
   COMMAND_BOT_SCHEDULE,
 ];
 
-const IMPLICIT_SCHEDULE_DATE = /^(?:(?:\d{4}[/-])?\d{1,2}[/-]\d{1,2}|(?:\d{4}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}\s*日|今天|明天|後天|大後天|今晚|明早|明晚|(?:(?:本|這|下)(?:個)?)?(?:星期|週|周)[一二三四五六日天])/u;
+const IMPLICIT_SCHEDULE_DATE = /^(?:(?:\d{4}[/-])?\d{1,2}[/-]\d{1,2}|(?:\d{4}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}\s*日|今天|明天|後天|大後天|今晚|明早|明晚|(?:(?:本|這|下)(?:個)?)?(?:星期|週|周)[一二三四五六日天]|每(?:天|日|(?:個)?(?:星期|週|周|月|年)))/u;
 const QUESTION_ENDING = /[?？]\s*$/u;
 const QUESTION_PHRASE = /(?:嗎|呢|如何|怎麼|為什麼|多少|幾[點號]|哪(?:天|裡|個)|會不會|是不是|是否)\s*[?？]?$/u;
 const NON_EVENT_DETAIL = /^(?:[+*/=]|是(?:多少|什麼|幾)|等於|多少|幾號|怎麼|如何|為什麼|可不可以|能不能)/u;
@@ -129,6 +129,7 @@ const formatDateTime = (value, timezone, allDay) => new Intl.DateTimeFormat('zh-
  */
 const formatSummary = ({
   title, start, start_at: startAt, end, end_at: endAt, allDay, all_day: allDayColumn, location,
+  recurrence,
 }, timezone) => {
   const isAllDay = allDay ?? allDayColumn ?? false;
   const lines = [title];
@@ -137,6 +138,18 @@ const formatSummary = ({
   lines.push(`${formatDateTime(from, timezone, isAllDay)}${isAllDay ? `（${t('__TEXT_SCHEDULE_ALL_DAY')}）` : ''}`);
   if (to) lines.push(`至 ${formatDateTime(to, timezone, isAllDay)}`);
   if (location) lines.push(location);
+  if (recurrence?.freq) {
+    const key = `__TEXT_SCHEDULE_RECURRENCE_${recurrence.freq}`;
+    const formatRule = t(key);
+    if (typeof formatRule === 'function') {
+      const rule = formatRule(recurrence.interval ?? 1);
+      const count = recurrence.count ? t('__TEXT_SCHEDULE_RECURRENCE_COUNT')(recurrence.count) : '';
+      const until = recurrence.until
+        ? t('__TEXT_SCHEDULE_RECURRENCE_UNTIL')(formatDateTime(recurrence.until, timezone, true))
+        : '';
+      lines.push(`${t('__TEXT_SCHEDULE_RECURRENCE_LABEL')}${rule}${count}${until}`);
+    }
+  }
   return lines.join('\n');
 };
 

@@ -167,6 +167,8 @@ test.each([
   '下個星期五下午三點看診',
   '這個星期二繳信用卡',
   '這週二繳信用卡',
+  '每天晚上十點四十分 RC 週期提醒驗收',
+  '每週五下午三點整理週報',
 ])('treats an explicit date-led statement as an implicit schedule: %s', async (text) => {
   const scheduleHandler = await load();
   const context = await scheduleHandler(makeContext(text));
@@ -250,6 +252,20 @@ test('parses a draft and asks for confirmation instead of writing the event', as
     { data: `取消行程 ${token}`, displayText: '取消行程' },
   ]);
   expect(settleConfirmation).not.toHaveBeenCalled();
+});
+
+test('shows the recurrence rule in the confirmation summary', async () => {
+  const scheduleHandler = await load();
+  parseSchedule.mockResolvedValue({
+    valid: true,
+    errors: [],
+    value: {
+      ...DRAFT,
+      recurrence: { freq: 'DAILY', interval: 2, count: 3 },
+    },
+  });
+  const context = await scheduleHandler(makeContext('記行程 每兩天晚上十點例行檢查'));
+  expect(context.messages[0].text).toContain('重複：每 2 天，共 3 次');
 });
 
 test('voice-created schedule flows through the same draft/confirm path and echoes the transcription', async () => {

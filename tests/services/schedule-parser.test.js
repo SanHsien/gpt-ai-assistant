@@ -4,6 +4,7 @@ import {
   resolveWeekdayDate,
   resolveRelativeDate,
   resolveRelativeInstant,
+  resolveExplicitClock,
   hasAmbiguousTimePeriod,
   buildScheduleMessages,
   parseEventDraft,
@@ -58,6 +59,69 @@ test.each([
   const now = new Date('2026-07-16T18:15:00Z');
   expect(resolveRelativeInstant({ text, now }).instant).toBe(expected);
   expect(buildScheduleMessages({ text, now }).at(0).content).toContain(expected);
+});
+
+test.each([
+  ['每天 22:40 例行檢查', { hour: 22, minute: 40 }],
+  ['每天晚上十點四十分 例行檢查', { hour: 22, minute: 40 }],
+  ['明天上午十二點半 開會', { hour: 0, minute: 30 }],
+  ['tomorrow at 3 pm', { hour: 15, minute: 0 }],
+])('extracts an explicit local wall clock: %s', (text, expected) => {
+  expect(resolveExplicitClock(text)).toMatchObject(expected);
+});
+
+test('keeps a recurring explicit clock in the user timezone when the model double-applies UTC offset', async () => {
+  const complete = jest.fn().mockResolvedValue(JSON.stringify({
+    title: 'RC 週期提醒驗收',
+    start: '2026-07-18T14:40:00+08:00',
+    end: '2026-07-18T15:40:00+08:00',
+    allDay: false,
+    timezone: 'Asia/Taipei',
+    location: null,
+    notes: null,
+    recurrence: { freq: 'DAILY', interval: 1, count: null, until: null },
+    knownDate: null,
+    knownTime: null,
+    knownEndDate: null,
+    knownEndTime: null,
+    missingFields: [],
+  }));
+  const result = await parseEventDraft('每天 22:40 RC 週期提醒驗收', {
+    timezone: 'Asia/Taipei',
+    now: new Date('2026-07-18T14:30:00Z'),
+    complete,
+  });
+  expect(result.valid).toBe(true);
+  expect(result.value).toMatchObject({
+    start: '2026-07-18T14:40:00.000Z',
+    end: '2026-07-18T15:40:00.000Z',
+    recurrence: { freq: 'DAILY', interval: 1 },
+  });
+});
+
+test('moves the first daily occurrence to tomorrow when today local wall clock has passed', async () => {
+  const complete = jest.fn().mockResolvedValue(JSON.stringify({
+    title: '例行檢查',
+    start: '2026-07-18T14:40:00Z',
+    end: null,
+    allDay: false,
+    timezone: 'Asia/Taipei',
+    location: null,
+    notes: null,
+    recurrence: { freq: 'DAILY', interval: 1, count: null, until: null },
+    knownDate: null,
+    knownTime: null,
+    knownEndDate: null,
+    knownEndTime: null,
+    missingFields: [],
+  }));
+  const result = await parseEventDraft('每天晚上十點四十分例行檢查', {
+    timezone: 'Asia/Taipei',
+    now: new Date('2026-07-18T14:45:00Z'),
+    complete,
+  });
+  expect(result.valid).toBe(true);
+  expect(result.value.start).toBe('2026-07-19T14:40:00.000Z');
 });
 
 test('overrides a model-selected start with the deterministic relative instant', async () => {
