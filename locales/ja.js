@@ -313,6 +313,7 @@ const ja = {
   __ERROR_MAX_USERS_REACHED: 'ユーザー数の上限に達しています。',
   __ERROR_MISSING_ENV: (v) => `「${v}」環境変数が見つかりません。`,
   __ERROR_FEATURE_DISABLED: 'この機能は現在無効です。',
+  __ERROR_AUDIO_TOO_LARGE: (mb) => `音声ファイルが大きすぎます（上限 ${mb} MB）。`,
   __MESSAGE_NEW_VERSION_AVAILABLE: (version) => `新しいバージョン ${version} が利用できます。`,
   __SOURCE_NAME_SOME_GROUP: 'あるグループ',
   __SOURCE_NAME_SOMEONE: 'あるユーザー',

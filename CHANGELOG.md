@@ -1,5 +1,10 @@
 # Changelog
 
+## [6.0.0-rc.9] - 2026-07-18
+
+- LINE Windows／Mac 不提供原生語音訊息錄製；新增 `file` webhook 的音訊副檔名白名單，桌面版附加 mp3／mp4／mpeg／mpga／m4a／wav／webm 時會走既有轉錄、指令、行程確認與 Google 同步流程。
+- 新增 `TRANSCRIPTION_MAX_BYTES`（預設 25 MiB），先檢查 LINE file metadata，下載後再以實際 buffer 大小防守；一般檔案仍忽略且音訊不落地。
+
 ## [6.0.0-rc.8] - 2026-07-18
 
 - 追查 rc.7 正式環境後確認 Calendar inbound 的真正瓶頸是 `singleEvents=true`：無截止日的每日週期會被 Google 展開成大量 instances，造成連續 60 秒 Cron timeout。

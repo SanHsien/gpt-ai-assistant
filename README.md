@@ -28,7 +28,7 @@
 | 類別 | 能做什麼 |
 |------|----------|
 | 💬 對話 | 與 AI 連續對話（`talk`）；`continue` 續寫、`retry` 重試、`forget` 清除脈絡 |
-| 🎙️ 語音 | 傳 LINE 語音訊息，用 OpenAI 語音轉文字（預設 `gpt-4o-mini-transcribe`，可設定）轉成文字後當一般輸入處理 |
+| 🎙️ 語音 | 傳 LINE 語音訊息；Windows／Mac 亦可附加 mp3／mp4／mpeg／mpga／m4a／wav／webm 音訊檔。由 OpenAI 語音轉文字（預設 `gpt-4o-mini-transcribe`）後當一般輸入處理 |
 | 🎨 生圖 | 用文字描述請 AI 生圖（`draw`，預設 GPT Image 2） |
 | 👁️ 看圖 | 傳圖片請 AI 理解與描述（vision，預設 `gpt-4o`） |
 | 🔍 搜尋 | 透過 SerpAPI 上網查資料（`search`，需 `SERPAPI_API_KEY`） |
@@ -129,7 +129,7 @@ npm test                # jest
 - **Webhook 防重送**：LINE redelivery 與重複 `webhookEventId` 不會再次處理，避免長耗時功能重複計費與回覆。
 - **Durable 基礎（Phase 0）**：Supabase Postgres、原子入列的 webhook 冪等、帶 lease fencing 的 job queue、AES-256-GCM 加密的 job payload、HMAC 化的使用者代碼。6.0 固定走 durable queue；事件缺 ID、DB 故障或 migration 落後時拒絕 ACK，交由 LINE redelivery。
 - **行程與提醒（Phase 1 + Phase 3 + Google Calendar 雙向同步）**：一句話（文字或**語音**）建行程，日期／星期與明確鐘點由程式依使用者時區解消，模糊時間以 durable 結構化草稿追問。`每天 22:40 例行檢查`、`每週五下午三點整理週報` 可直接建立週期草稿，確認卡會明列重複規則。新增與修改都先確認，row lock 與 optimistic version 防重複或過時覆蓋；重疊時先警告。Google 模式可新增、修改回寫、列表、完成與刪除；**inbound 同步**（`ENABLE_GOOGLE_CALENDAR_INBOUND`）以 sync token 輪詢回收 Google 端的刪除與 timed 行程修改，並與 LINE 提醒去重。
-- **語音建行程（Phase 4）**：LINE 語音訊息轉錄後走與文字相同的 event-draft→確認流程，確認卡回顯「🎤 我聽到：…」讓使用者分辨聽錯／解析錯。圖片建行程決定不做。
+- **語音建行程（Phase 4）**：LINE 語音訊息或桌面版附加的支援音訊檔，轉錄後走與文字相同的 event-draft→確認流程，確認卡回顯「🎤 我聽到：…」讓使用者分辨聽錯／解析錯。預設上限 25 MiB，可用 `TRANSCRIPTION_MAX_BYTES` 調整；圖片建行程決定不做。
 - **任務（Phase 2 + Google Tasks 雙向同步）**：獨立保存於 Supabase 助理待辦；`ENABLE_GOOGLE_TASKS` 開啟時新增／完成／重開／刪除會同步到 Google Tasks（與 Calendar 共用 OAuth），`ENABLE_GOOGLE_TASKS_INBOUND` 開啟時 Google 端的完成／重開、刪除、標題、備註也會回收到本地（`due` 不回收，精確期限以本地為權威）。自然語言期限依使用者時區解析，支援優先度、標籤、今天／明天／本週／下週／逾期／已完成篩選、分頁，以及 owner-scoped 完成、重開與刪除。未知篩選會回覆可用選項，不會退回全部任務造成假成功。
 - **提醒偏好（Phase 3）**：到點提醒、安靜時段、暫停／恢復、陳舊提醒跳過與 retry key；`REMINDER_OFFSETS` 可設最多五個提前提醒，週期行程的每次 occurrence 也會套用。
 - **天氣（Phase 6）**：Open-Meteo 現況與 1–7 日預報、同名地點座標追問，以及每日訂閱推播（`ENABLE_WEATHER_PUSH`，重用同一 scheduler）。
@@ -139,7 +139,7 @@ npm test                # jest
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.8`**：Calendar inbound 改以非展開的 recurring series 建立 sync cursor，忽略 recurrence instances，並由 `0019` 讓既有 v1 cursor 安全重建；避免無截止日的每日行程展開後拖垮 Cron。正式 `6.0.0` 仍須完成剩餘集中 LINE／Google 驗收，見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+- **`6.0.0-rc.9`**：延續 rc.8 的 Calendar inbound 修正，新增 LINE 桌面音訊檔轉錄與大小限制，讓 Windows／Mac 使用者不需手機錄音也能使用語音輸入。正式 `6.0.0` 仍須完成最後 LINE／Google 驗收，見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **Google contract 邊界**：Calendar outbound CRUD 與 mapped timed non-recurring inbound、Tasks mapped inbound/outbound 已納入契約；Calendar 全天 inbound、recurrence exception、Google-origin 建立，以及 Tasks due 回收仍明確不支援。
 - **模型與 API 進一步升級**——首輪已完成；新模型等待實作前對官方文件重核，見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **吸收 fermi 架構經驗**——分階段重做可靠性、持久化、觀測性；不直接合併 fermi 原始碼。

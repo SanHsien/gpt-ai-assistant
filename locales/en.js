@@ -313,6 +313,7 @@ const en = {
   __ERROR_MAX_USERS_REACHED: 'Maximum users reached',
   __ERROR_MISSING_ENV: (v) => `Missing environment variable: ${v}`,
   __ERROR_FEATURE_DISABLED: 'This feature is currently disabled.',
+  __ERROR_AUDIO_TOO_LARGE: (mb) => `The audio file is too large (maximum ${mb} MB).`,
   __MESSAGE_NEW_VERSION_AVAILABLE: (version) => `A new version ${version} is now available!`,
   __SOURCE_NAME_SOME_GROUP: 'Someone Group',
   __SOURCE_NAME_SOMEONE: 'Someone',

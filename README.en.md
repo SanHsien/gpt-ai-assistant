@@ -28,7 +28,7 @@ This repository originated from [`memochou1993/gpt-ai-assistant`](https://github
 | Category | What it does |
 |------|----------|
 | 💬 Chat | Continuous conversation (`talk`); `continue`, `retry`, `forget` |
-| 🎙️ Voice | Send a LINE voice message; transcribed by OpenAI speech-to-text (default `gpt-4o-mini-transcribe`, configurable) and handled as normal input — including **voice-created events** (the confirmation card echoes "🎤 Heard: ...") |
+| 🎙️ Voice | Send a LINE voice message, or attach an mp3/mp4/mpeg/mpga/m4a/wav/webm file from Windows/macOS; OpenAI speech-to-text (default `gpt-4o-mini-transcribe`) handles it as normal input, including **voice-created events**. The confirmation card echoes "🎤 Heard: ..."; `TRANSCRIPTION_MAX_BYTES` defaults to 25 MiB |
 | 🎨 Draw | Generate images from a text prompt (`draw`, default GPT Image 2) |
 | 👁️ Vision | Send an image for the AI to understand and describe (default `gpt-4o`) |
 | 🔍 Search | Web search via SerpAPI (`search`) with a "📎 Sources" list (title/source/date/link; shown only, never fed into the prompt) |
@@ -105,7 +105,7 @@ This project keeps **OpenAI + LINE, self-hosting, and user-supplied API keys** w
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.8`** switches Calendar inbound to non-expanded recurring-series sync, ignores recurrence instances, and uses migration `0019` to rebuild legacy v1 cursors safely. This prevents open-ended daily series from exhausting the Cron runtime. Final `6.0.0` still requires the remaining consolidated LINE/Google acceptance checks.
+- **`6.0.0-rc.9`** retains rc.8 Calendar inbound behavior and adds supported LINE desktop audio-file transcription with a configurable size limit. Windows/macOS users can attach mp3/mp4/mpeg/mpga/m4a/wav/webm files when native voice recording is unavailable. Final `6.0.0` still requires the last LINE/Google acceptance check.
 - **Google contract limits**: Calendar outbound CRUD and mapped timed non-recurring inbound plus mapped Tasks inbound/outbound are supported. Calendar all-day inbound, recurrence exceptions, Google-origin creation, and Tasks due-date inbound remain explicitly unsupported.
 - **Further model/API upgrades** — first pass done; new models must be re-verified against official documentation before use, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - **Adopt selected fermi architecture lessons** — rebuild reliability, persistence, observability in phases; do not merge fermi source code directly.

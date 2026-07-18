@@ -11,6 +11,7 @@ export const SOURCE_TYPE_GROUP = 'group';
 export const MESSAGE_TYPE_TEXT = 'text';
 export const MESSAGE_TYPE_STICKER = 'sticker';
 export const MESSAGE_TYPE_AUDIO = 'audio';
+export const MESSAGE_TYPE_FILE = 'file';
 export const MESSAGE_TYPE_IMAGE = 'image';
 export const MESSAGE_TYPE_TEMPLATE = 'template';
 

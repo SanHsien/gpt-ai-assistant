@@ -119,6 +119,11 @@ class Context {
     }
     if (this.event.isAudio) {
       if (!config.ENABLE_TRANSCRIPTION) return this.pushError(new Error(t('__ERROR_FEATURE_DISABLED')));
+      if (this.event.fileSize && this.event.fileSize > config.TRANSCRIPTION_MAX_BYTES) {
+        return this.pushError(new Error(t('__ERROR_AUDIO_TOO_LARGE')(
+          Math.ceil(config.TRANSCRIPTION_MAX_BYTES / 1024 / 1024),
+        )));
+      }
       try {
         await this.transcribeAudio();
       } catch (err) {
@@ -183,7 +188,12 @@ class Context {
 
   async transcribeAudio() {
     const buffer = await fetchAudio(this.event.messageId);
-    const file = `${this.event.messageId}.m4a`;
+    if (buffer.length > config.TRANSCRIPTION_MAX_BYTES) {
+      throw new Error(t('__ERROR_AUDIO_TOO_LARGE')(
+        Math.ceil(config.TRANSCRIPTION_MAX_BYTES / 1024 / 1024),
+      ));
+    }
+    const file = this.event.audioFileName;
     const { text } = await generateTranscription({ file, buffer });
     this.transcription = convertText(text);
   }

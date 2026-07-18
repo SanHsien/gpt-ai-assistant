@@ -321,6 +321,7 @@ const zh = {
   __ERROR_MAX_USERS_REACHED: '用戶數量到達上限了',
   __ERROR_MISSING_ENV: (v) => `缺少環境變數：${v}`,
   __ERROR_FEATURE_DISABLED: '此功能目前已停用',
+  __ERROR_AUDIO_TOO_LARGE: (mb) => `音訊檔案過大（上限 ${mb} MB）`,
   __MESSAGE_NEW_VERSION_AVAILABLE: (version) => `最新版本為 ${version}，請從 GitHub 更新。`,
   __SOURCE_NAME_SOME_GROUP: '某群組',
   __SOURCE_NAME_SOMEONE: '某用戶',

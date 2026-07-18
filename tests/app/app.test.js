@@ -88,3 +88,18 @@ test('an explicit search command is not consumed by a pending schedule workflow'
   expect(scheduleHandler).not.toHaveBeenCalled();
   expect(contexts[0].messages).toEqual([{ type: 'text', text: 'searched' }]);
 });
+
+test('supported LINE audio file attachments enter the same handler pipeline', async () => {
+  const { prepareEvents } = await load();
+  const contexts = await prepareEvents([{
+    type: 'message',
+    replyToken: 'reply-audio-file',
+    source: { type: 'user', userId: 'U1' },
+    message: {
+      type: 'file', id: 'audio-file-1', fileName: 'schedule.m4a', fileSize: 1024,
+    },
+  }]);
+
+  expect(scheduleHandler).toHaveBeenCalledTimes(1);
+  expect(contexts).toHaveLength(1);
+});
