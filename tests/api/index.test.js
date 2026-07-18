@@ -113,6 +113,18 @@ const response = () => {
   return res;
 };
 
+test('liveness endpoint does not depend on external services', async () => {
+  await load();
+  const res = response();
+
+  await getHandlers['/health/live']({}, res);
+
+  expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store');
+  expect(res.status).toHaveBeenCalledWith(200);
+  expect(res.send).toHaveBeenCalledWith({ status: 'OK' });
+  expect(ensureRuntimeReady).not.toHaveBeenCalled();
+});
+
 test('durable events are acknowledged before background drain finishes', async () => {
   await load();
   enqueueEvents.mockResolvedValue([]);

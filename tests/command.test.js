@@ -10,7 +10,9 @@ import {
   COMMAND_SYS_REPORT,
   GENERAL_COMMANDS,
 } from '../app/commands/index.js';
-import { createEvents, TIMEOUT, MOCK_USER_01 } from './utils.js';
+import {
+  createEvents, TIMEOUT, MOCK_USER_01, TEST_HANDLE_OPTIONS,
+} from './utils.js';
 
 beforeEach(() => {
   //
@@ -26,7 +28,7 @@ test('COMMAND_SYS_COMMAND', async () => {
   ];
   let results;
   try {
-    results = await handleEvents(events);
+    results = await handleEvents(events, TEST_HANDLE_OPTIONS);
   } catch (err) {
     console.error(err);
   }
@@ -44,7 +46,10 @@ test('COMMAND_SYS_COMMAND', async () => {
 }, TIMEOUT);
 
 test('COMMAND_SYS_REPORT targets this independently maintained repository', async () => {
-  const results = await handleEvents(createEvents([COMMAND_SYS_REPORT.text]));
+  const results = await handleEvents(
+    createEvents([COMMAND_SYS_REPORT.text]),
+    TEST_HANDLE_OPTIONS,
+  );
 
   expect(results[0].messages[0].text)
     .toBe('https://github.com/SanHsien/gpt-ai-assistant/issues');

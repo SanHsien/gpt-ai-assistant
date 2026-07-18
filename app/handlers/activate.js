@@ -1,4 +1,3 @@
-import { setBotSourceActivation } from '../../repositories/bot-sources.js';
 import { COMMAND_BOT_ACTIVATE, GENERAL_COMMANDS } from '../commands/index.js';
 import { updateHistory } from '../history/index.js';
 
@@ -16,7 +15,7 @@ const exec = (context) => check(context) && (
   async () => {
     updateHistory(context.id, (history) => history.erase());
     try {
-      await setBotSourceActivation(context.id, true);
+      await context.botSourceRepository.setBotSourceActivation(context.id, true);
       context.source.bot.isActivated = true;
       context.pushText(COMMAND_BOT_ACTIVATE.reply, GENERAL_COMMANDS);
     } catch (err) {

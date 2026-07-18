@@ -76,6 +76,11 @@ app.get('/oauth/google/callback', oauthRateLimit, async (req, res) => {
   }
 });
 
+app.get('/health/live', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(200).send({ status: 'OK' });
+});
+
 app.get('/', async (req, res) => {
   if (config.APP_URL) {
     res.redirect(config.APP_URL);

@@ -14,17 +14,12 @@ const load = async () => {
   deriveChannelUserKey = jest.fn((value) => `protected:${value}`);
   jest.doMock('../../services/database.js', () => ({ withTransaction, query }));
   jest.doMock('../../services/data-protection.js', () => ({ deriveChannelUserKey }));
-  jest.doMock('../../config/index.js', () => ({
-    __esModule: true,
-    default: { APP_ENV: 'production' },
-  }));
   return import('../../repositories/bot-sources.js');
 };
 
 afterEach(() => {
   jest.dontMock('../../services/database.js');
   jest.dontMock('../../services/data-protection.js');
-  jest.dontMock('../../config/index.js');
   jest.resetModules();
 });
 

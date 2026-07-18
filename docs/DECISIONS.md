@@ -2,6 +2,13 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-07-18 — RC.4 完成容器可靠性與 major 維護遷移
+
+- **容器 fail-safe**：Dockerfile 與 Compose 都將缺少／空白 `APP_PORT` 收斂到 `3000`，另設獨立 `/health/live`，避免 readiness 對 Supabase／GitHub 的依賴造成 liveness 誤判。CI 實際 build／run production image，不再只做 Dockerfile 靜態覆核。
+- **health 語意**：Docker healthcheck 只提供狀態；`restart: unless-stopped` 不會因 `unhealthy` 自動重啟。需要自動回收時交由部署平台／orchestrator，不能在文件中暗示 Compose restart policy 已涵蓋 hang recovery。
+- **測試依賴隔離**：`bot-sources` 的 production repository 不再依 `APP_ENV` 切換 Map；事件處理明確接受 repository dependency，記憶體 adapter 僅存在 tests。
+- **major 升級**：Express 5.2、Jest 30.4 與 ESLint 10 flat config 已一起遷移並全量回歸。ESLint 直接升目前穩定 10；Babel 暫留 `babel-jest 30` 官方支援的 7.x，因 Babel 8 ESM-only 與 Node patch 契約是另一個可獨立驗證的 transform 決策。本節取代下方「RC 不硬升 major」對這三項的暫緩結論。
+
 ## 2026-07-18 — 公開歷史以目前快照重新初始化
 
 - **決定**：在 repository 已解除 fork network、且不再規劃回貢上游後，將目前完整檔案樹建立為由 SanHsien 署名、commit message 為「初始化」的單一 root commit；`main` 與目前 release tag 指向新 root，刪除其餘公開 tags／舊 prerelease refs。

@@ -286,7 +286,7 @@ adapters
 
 語意化版本的 major 代表使用者或部署者必須處理的不相容變更，不代表 Phase 編號。只要新增功能仍與既有指令、環境變數與資料相容，就留在 `5.x`；不為了「路線圖走完」硬切 `6.0.0`。
 
-`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.3` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口與 Node 24 維護基線，既有 Production 升級、Cron 與回滾往返已通過，現進入集中驗收：
+`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.4` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性與 Express／Jest／ESLint 維護基線，既有 Production 升級、Cron 與回滾往返已通過，現進入集中驗收：
 
 - [x] 提醒排程只有一個實作入口；到點、lead、週期與 inbound 修改共用相同 idempotency key 規則。
 - [x] 移除可由 durable jobs 推導的 `event_reminders` 第二份狀態（`0017`）。
@@ -330,14 +330,16 @@ adapters
 - `6.0.0-rc.1`：durable-only runtime、`0018` bot source、migration/config preflight、legacy Vercel storage／同步 fallback 移除，以及 Google provider contract；Production 升級與回滾已通過。
 - `6.0.0-rc.2`：全域 Quick Reply 改為 feature-aware 的最多 13 個常用入口，`指令` 改為實際分組完整清單與範例，並完成 fork 可採用的選用圖文選單文件；供集中 LINE／Google 驗收。
 - `6.0.0-rc.3`：補齊英／日 locale 與 Google OAuth HTML、統一 Node 24 容器基線、更新同 major dependencies、修復獨立 repo 的 Issue 回報入口；正式版 gate 不變。
+- `6.0.0-rc.4`：完成 Express 5、Jest 30、ESLint 10 flat config、bot-source repository 注入，以及 Docker port／liveness／CI image smoke；LINE 與 durable 資料契約不變。
 - 後續 `5.x`：只做向後相容的功能、可靠性與文件改善；版本可持續增加，不預設一定要到哪個 minor。
 - `6.0.0`：RC 已在既有 Production 完成 migration、Cron 與回滾演練；集中 LINE／Supabase／Google 驗收通過後發布。
 
 ### 6.x 相依架構遷移
 
-- [ ] Express 5：逐項驗證 middleware、錯誤傳播、route pattern 與 serverless adapter 後升級。
-- [ ] Jest 30／Babel 8：先處理 ESM transform、mock 行為與 Node 版本契約，再成套升級測試工具鏈。
-- [ ] ESLint flat config：`eslint-config-airbnb@19` 只支援 ESLint 7／8；先選定可維護的 flat-config 規則集，再移除 EOL ESLint 8，不以 `--legacy-peer-deps` 壓過衝突。
+- [x] Express 5：已升 `5.2.1`，既有固定 route pattern、middleware、OAuth、webhook 與本機 HTTP liveness smoke 通過。
+- [x] Jest 30：Jest／`@jest/globals`／`babel-jest` 已升 30.4，原有 ESM mock／transform 與 71 suites 全數通過。
+- [x] ESLint flat config：已直接升目前穩定 ESLint 10，改用官方 recommended＋本專案明確規則，移除只支援 ESLint 7／8 的 `eslint-config-airbnb@19`，未使用 peer override。
+- [ ] Babel 8：目前 `babel-jest 30` 官方仍支援 Babel 7；Babel 8 是 ESM-only 且提高 Node patch 契約，待能移除 Babel transform 或獨立驗證 ESM config 時再升，不與 runtime framework 綁成同一變更。
 - [ ] `dotenv` 17、`html-to-text` 10 等其餘 major 依實際 migration notes 與回歸測試分批處理。
 
 ### M1 真實環境驗收矩陣（2026-07-17）

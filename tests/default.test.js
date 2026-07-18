@@ -6,7 +6,7 @@ import {
 } from '../app/index.js';
 import config from '../config/index.js';
 import {
-  createEvents, TIMEOUT, MOCK_USER_01, MOCK_TEXT_OK,
+  createEvents, TIMEOUT, MOCK_USER_01, MOCK_TEXT_OK, TEST_HANDLE_OPTIONS,
 } from './utils.js';
 
 beforeEach(() => {
@@ -23,7 +23,7 @@ test('DEFAULT', async () => {
   ];
   let results;
   try {
-    results = await handleEvents(events);
+    results = await handleEvents(events, TEST_HANDLE_OPTIONS);
   } catch (err) {
     console.error(err);
   }

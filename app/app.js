@@ -67,21 +67,24 @@ const handleContextsInUserOrder = (contexts) => {
  * @param {Array<Object>} events
  * @returns {Promise<Array<Context>>} 有話要回的 context
  */
-export const prepareEvents = async (events = []) => (
+export const prepareEvents = async (events = [], dependencies = {}) => (
   (await Promise.all(
     handleContextsInUserOrder(
       events
         .map((event) => new Event(event))
         .filter((event) => event.isMessage || event.isPostback)
         .filter((event) => event.isText || event.isAudio || event.isImage)
-        .map((event) => new Context(event)),
+        .map((event) => new Context(event, dependencies)),
     ),
   ))
     .filter((context) => context.messages.length > 0)
 );
 
-const handleEvents = async (events = [], { allowPushFallback = true } = {}) => {
-  const contexts = await prepareEvents(events);
+const handleEvents = async (
+  events = [],
+  { allowPushFallback = true, botSourceRepository } = {},
+) => {
+  const contexts = await prepareEvents(events, { botSourceRepository });
   return Promise.all(contexts.map((context) => replyMessage(context, { allowPushFallback })));
 };
 

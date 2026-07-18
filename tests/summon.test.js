@@ -4,7 +4,7 @@ import {
 import { getPrompt, handleEvents, removePrompt } from '../app/index.js';
 import config from '../config/index.js';
 import {
-  createEvents, MOCK_TEXT_OK, MOCK_USER_01, TIMEOUT,
+  createEvents, MOCK_TEXT_OK, MOCK_USER_01, TEST_HANDLE_OPTIONS, TIMEOUT,
 } from './utils.js';
 
 beforeEach(() => {
@@ -21,7 +21,7 @@ test('COMMAND_BOT_SUMMON', async () => {
   ];
   let results;
   try {
-    results = await handleEvents(events);
+    results = await handleEvents(events, TEST_HANDLE_OPTIONS);
   } catch (err) {
     console.error(err);
   }

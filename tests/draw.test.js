@@ -4,7 +4,7 @@ import {
 import { handleEvents, getPrompt, removePrompt } from '../app/index.js';
 import { COMMAND_BOT_DRAW } from '../app/commands/index.js';
 import {
-  createEvents, TIMEOUT, MOCK_USER_01, MOCK_TEXT_OK,
+  createEvents, TIMEOUT, MOCK_USER_01, MOCK_TEXT_OK, TEST_HANDLE_OPTIONS,
 } from './utils.js';
 
 beforeEach(() => {
@@ -21,7 +21,7 @@ test('COMMAND_BOT_DRAW', async () => {
   ];
   let results;
   try {
-    results = await handleEvents(events);
+    results = await handleEvents(events, TEST_HANDLE_OPTIONS);
   } catch (err) {
     console.error(err);
   }

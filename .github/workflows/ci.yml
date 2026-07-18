@@ -22,3 +22,45 @@ jobs:
       - run: npx eslint .
       - run: npm run test:module-load
       - run: npm test
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build production image
+        run: docker build --tag gpt-ai-assistant:smoke .
+
+      - name: Verify default port and image healthcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name gpt-ai-assistant-smoke \
+            --publish 3000:3000 \
+            --health-start-period 1s \
+            --health-interval 1s \
+            --health-timeout 2s \
+            --health-retries 5 \
+            gpt-ai-assistant:smoke
+          trap 'docker logs gpt-ai-assistant-smoke; docker rm --force gpt-ai-assistant-smoke' EXIT
+
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/health/live; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              exit 1
+            fi
+            sleep 1
+          done
+
+          for attempt in {1..20}; do
+            status="$(docker inspect --format '{{.State.Health.Status}}' gpt-ai-assistant-smoke)"
+            if [ "$status" = "healthy" ]; then
+              exit 0
+            fi
+            if [ "$status" = "unhealthy" ] || [ "$attempt" -eq 20 ]; then
+              exit 1
+            fi
+            sleep 1
+          done

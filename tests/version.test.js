@@ -13,9 +13,16 @@ const load = async (latest) => {
   const { getPrompt, handleEvents, removePrompt } = await import('../app/index.js');
   const { COMMAND_SYS_VERSION } = await import('../app/commands/index.js');
   const { t } = await import('../locales/index.js');
-  const { createEvents, MOCK_USER_01 } = await import('./utils.js');
+  const { createEvents, MOCK_USER_01, TEST_HANDLE_OPTIONS } = await import('./utils.js');
   return {
-    getPrompt, handleEvents, removePrompt, COMMAND_SYS_VERSION, t, createEvents, MOCK_USER_01,
+    getPrompt,
+    handleEvents,
+    removePrompt,
+    COMMAND_SYS_VERSION,
+    t,
+    createEvents,
+    MOCK_USER_01,
+    TEST_HANDLE_OPTIONS,
   };
 };
 
@@ -28,8 +35,12 @@ test('COMMAND_SYS_VERSION reports up-to-date when latest === current', async () 
   const current = getVersion();
   const {
     handleEvents, getPrompt, removePrompt, COMMAND_SYS_VERSION, t, createEvents, MOCK_USER_01,
+    TEST_HANDLE_OPTIONS,
   } = await load(current);
-  const results = await handleEvents(createEvents([COMMAND_SYS_VERSION.text]));
+  const results = await handleEvents(
+    createEvents([COMMAND_SYS_VERSION.text]),
+    TEST_HANDLE_OPTIONS,
+  );
   const replies = results.map(({ messages }) => messages.map(({ text }) => text));
   expect(getPrompt(MOCK_USER_01).messages.length).toEqual(3);
   expect(replies).toEqual([[t('__COMMAND_SYS_VERSION_REPLY')(current, true)]]);
@@ -41,8 +52,12 @@ test('COMMAND_SYS_VERSION reports a new version when latest !== current', async 
   const latest = `${current}-next`;
   const {
     handleEvents, removePrompt, COMMAND_SYS_VERSION, t, createEvents, MOCK_USER_01,
+    TEST_HANDLE_OPTIONS,
   } = await load(latest);
-  const results = await handleEvents(createEvents([COMMAND_SYS_VERSION.text]));
+  const results = await handleEvents(
+    createEvents([COMMAND_SYS_VERSION.text]),
+    TEST_HANDLE_OPTIONS,
+  );
   const replies = results.map(({ messages }) => messages.map(({ text }) => text));
   expect(replies).toEqual([[
     t('__COMMAND_SYS_VERSION_REPLY')(current, false),

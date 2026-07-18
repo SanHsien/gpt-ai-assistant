@@ -1,28 +1,11 @@
-import config from '../config/index.js';
 import { withTransaction, query } from '../services/database.js';
 import { deriveChannelUserKey } from '../services/data-protection.js';
-
-const testSources = new Map();
 
 const sourceLimitError = (sourceType) => {
   const err = new Error(`maximum ${sourceType} sources reached`);
   err.code = 'SOURCE_LIMIT_REACHED';
   err.sourceType = sourceType;
   return err;
-};
-
-const ensureTestSource = ({
-  sourceKey, sourceType, defaultActivated, maxSources,
-}) => {
-  const key = `${sourceType}:${sourceKey}`;
-  if (testSources.has(key)) return testSources.get(key);
-  const count = [...testSources.values()].filter((source) => source.source_type === sourceType).length;
-  if (count >= maxSources) throw sourceLimitError(sourceType);
-  const source = {
-    source_type: sourceType, is_activated: defaultActivated,
-  };
-  testSources.set(key, source);
-  return source;
 };
 
 /**
@@ -34,11 +17,6 @@ const ensureTestSource = ({
 export const ensureBotSource = async ({
   sourceKey, sourceType, defaultActivated, maxSources,
 }) => {
-  if (config.APP_ENV === 'test') {
-    return ensureTestSource({
-      sourceKey, sourceType, defaultActivated, maxSources,
-    });
-  }
   const protectedKey = deriveChannelUserKey(sourceKey);
   return withTransaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`bot_sources:${sourceType}`]);
@@ -70,13 +48,6 @@ export const ensureBotSource = async ({
  * @returns {Promise<Object|null>}
  */
 export const setBotSourceActivation = async (sourceKey, isActivated) => {
-  if (config.APP_ENV === 'test') {
-    const entry = [...testSources.entries()].find(([key]) => key.endsWith(`:${sourceKey}`));
-    if (!entry) return null;
-    const updated = { ...entry[1], is_activated: isActivated };
-    testSources.set(entry[0], updated);
-    return updated;
-  }
   const result = await query(
     `UPDATE bot_sources
      SET is_activated = $1, updated_at = now()
@@ -86,7 +57,5 @@ export const setBotSourceActivation = async (sourceKey, isActivated) => {
   );
   return result.rows[0] || null;
 };
-
-export const clearTestBotSources = () => testSources.clear();
 
 export default { ensureBotSource, setBotSourceActivation };

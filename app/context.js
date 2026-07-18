@@ -18,7 +18,7 @@ import {
   ImageMessage, TemplateMessage, TextMessage,
 } from './messages/index.js';
 import { Bot, Source } from './models/index.js';
-import { ensureBotSource } from '../repositories/bot-sources.js';
+import botSourceRepository from '../repositories/bot-sources.js';
 
 class Context {
   /**
@@ -43,9 +43,12 @@ class Context {
 
   /**
    * @param {import('./models/index.js').Event} event
+   * @param {Object} dependencies
+   * @param {Object} dependencies.botSourceRepository
    */
-  constructor(event) {
+  constructor(event, { botSourceRepository: sourceRepository = botSourceRepository } = {}) {
     this.event = event;
+    this.botSourceRepository = sourceRepository;
   }
 
   get id() {
@@ -142,13 +145,13 @@ class Context {
       let current;
       let name;
       if (this.event.isGroup) {
-        current = await ensureBotSource({
+        current = await this.botSourceRepository.ensureBotSource({
           sourceKey: this.groupId,
           sourceType: SOURCE_TYPE_GROUP,
           defaultActivated: !config.BOT_DEACTIVATED,
           maxSources: config.APP_MAX_GROUPS,
         });
-        await ensureBotSource({
+        await this.botSourceRepository.ensureBotSource({
           sourceKey: this.userId,
           sourceType: SOURCE_TYPE_USER,
           defaultActivated: !config.BOT_DEACTIVATED,
@@ -156,7 +159,7 @@ class Context {
         });
         ({ groupName: name } = await fetchGroup(this.groupId));
       } else {
-        current = await ensureBotSource({
+        current = await this.botSourceRepository.ensureBotSource({
           sourceKey: this.userId,
           sourceType: SOURCE_TYPE_USER,
           defaultActivated: !config.BOT_DEACTIVATED,
@@ -172,7 +175,7 @@ class Context {
     } catch (err) {
       if (err.code === 'SOURCE_LIMIT_REACHED') {
         throw new Error(t(err.sourceType === SOURCE_TYPE_GROUP
-          ? '__ERROR_MAX_GROUPS_REACHED' : '__ERROR_MAX_USERS_REACHED'));
+          ? '__ERROR_MAX_GROUPS_REACHED' : '__ERROR_MAX_USERS_REACHED'), { cause: err });
       }
       throw err;
     }

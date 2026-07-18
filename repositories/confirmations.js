@@ -151,7 +151,6 @@ export const settleConfirmation = async ({
     }
 
     const operation = confirmation.operation || 'create';
-    let previousEvent = null;
     let event;
     if (operation === 'update') {
       const selectedEvent = await client.query(
@@ -160,7 +159,7 @@ export const settleConfirmation = async ({
          FOR UPDATE`,
         [confirmation.target_event_id, ownerId],
       );
-      previousEvent = selectedEvent.rows[0] || null;
+      const previousEvent = selectedEvent.rows[0] || null;
       if (!previousEvent || previousEvent.version !== confirmation.expected_version) {
         await client.query(
           `UPDATE confirmations SET state = 'cancelled', updated_at = now()

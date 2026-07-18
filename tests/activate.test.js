@@ -3,17 +3,17 @@ import {
 } from '@jest/globals';
 import { getPrompt, handleEvents, removePrompt } from '../app/index.js';
 import { COMMAND_BOT_ACTIVATE, COMMAND_BOT_DEACTIVATE } from '../app/commands/index.js';
-import { clearTestBotSources } from '../repositories/bot-sources.js';
 import {
-  createEvents, MOCK_TEXT_OK, MOCK_USER_01, TIMEOUT,
+  createEvents, MOCK_TEXT_OK, MOCK_USER_01, TEST_BOT_SOURCE_REPOSITORY,
+  TEST_HANDLE_OPTIONS, TIMEOUT,
 } from './utils.js';
 
 beforeEach(async () => {
-  clearTestBotSources();
+  TEST_BOT_SOURCE_REPOSITORY.clear();
   const events = [
     ...createEvents([COMMAND_BOT_DEACTIVATE.text]),
   ];
-  await handleEvents(events);
+  await handleEvents(events, TEST_HANDLE_OPTIONS);
 });
 
 afterEach(() => {
@@ -28,7 +28,7 @@ test('COMMAND_BOT_ACTIVATE', async () => {
   ];
   let results;
   try {
-    results = await handleEvents(events);
+    results = await handleEvents(events, TEST_HANDLE_OPTIONS);
   } catch (err) {
     console.error(err);
   }

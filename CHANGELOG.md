@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.0.0-rc.4] - 2026-07-18
+
+### Changed
+
+- 升級 Express 5.2、Jest 30.4 與 ESLint 10 flat config；移除不相容且停止跟進新版 ESLint 的 legacy Airbnb config，改用官方 recommended 加本專案明確規則，完整 71 suites／497 tests 通過。
+- `bot-sources` 移除 production 模組內的 `APP_ENV === 'test'` 記憶體分支，改由 `handleEvents`／`Context` 明確注入 repository；記憶體 adapter 僅保留在 tests。
+- Docker image 與 Compose 都為缺少／空白 `APP_PORT` 提供 `3000` fail-safe，新增 `/health/live`、image healthcheck，以及 CI production image build/run smoke test。
+- 修正 ESLint 10 揭露的遺失 error cause 與兩個無效初始賦值；不改變 LINE 指令或 durable 資料契約。
+
 ## [6.0.0-rc.3] - 2026-07-18
 
 ### Changed

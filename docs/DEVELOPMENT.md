@@ -78,7 +78,7 @@ webhook 驗簽／DB 冪等／enqueue／快速 ACK
 
 ```bash
 npm ci
-npx eslint .          # eslint（airbnb config，見 .eslintrc.cjs；無 npm script）
+npx eslint .          # ESLint flat config（見 eslint.config.js；無 npm script）
 npm test              # jest（見 tests/）
 npm run dev           # nodemon api/index.js，本機起 Express
 ```
@@ -329,7 +329,7 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 ### 其他跑法（非主力）
 
 - **本機 node**：`npm start`（`node api/index.js`）＋ 對外 tunnel。
-- **Docker**：repo 內含 Node 24 `Dockerfile` 與 `docker-compose.yaml`。先從 `.env.example` 建立不納入 Git 的 `.env` 並補齊必要值，再執行 `docker compose up --build`；Compose 會透過 `env_file` 將設定注入 container，`APP_PORT` 未指定時對外與容器內都用 `3000`。image 只安裝 production dependencies，並以非 root `node` 使用者執行。本機沒有 Docker CLI 時可改用 Node 流程，但不可把 Dockerfile 靜態覆核宣稱為已完成 image build。
+- **Docker**：repo 內含 Node 24 `Dockerfile` 與 `docker-compose.yaml`。先從 `.env.example` 建立不納入 Git 的 `.env` 並補齊必要值，再執行 `docker compose up --build --detach`；Compose 會透過 `env_file` 注入設定，Dockerfile 與 Compose 都會在 `APP_PORT` 缺少／空白時使用 `3000`。image 只安裝 production dependencies、以非 root `node` 執行，並以 `GET /health/live` 回報 liveness。用 `docker compose ps` 確認 `healthy`，再以 `curl http://127.0.0.1:3000/health/live`（Windows 可用 `Invoke-WebRequest`）驗證 HTTP。`restart: unless-stopped` 只在主程序退出時重啟，不會因 `unhealthy` 自動重啟；需要自動回收時應由平台／orchestrator 監看 health。CI 會實際 build／run production image 並檢查預設 port 與 healthcheck；本機沒有 Docker CLI 時可改用 Node 流程。
 
 ### 找回與檢查現有部署設定
 
@@ -401,7 +401,7 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 
 Phase 1 baseline 已接上新增、durable 追問／確認、查詢、修改、衝突警告、完成與刪除；Google 模式會新增與 PATCH 回寫。批次／週期 UX、修改履歷與首次使用主動 timezone 引導屬後續增強。
 
-**下一步**：`6.0.0-rc.3` 完成 durable-only 程式收斂、LINE 快捷入口、Google OAuth locale 與 Node 24 維護基線，Production `0018`、RC health、每分鐘 Cron 與 5.x ↔ RC 回滾往返均已通過；跑完 [`REVIEW.md`](../REVIEW.md) 的集中真實 LINE／Google 驗收後，才將同一候選升為正式 `6.0.0`。
+**下一步**：`6.0.0-rc.4` 完成 durable-only 程式收斂、LINE 快捷入口、Google OAuth locale、Node 24 container healthcheck 與 Express 5／Jest 30／ESLint 10 維護基線，Production `0018`、RC health、每分鐘 Cron 與 5.x ↔ RC 回滾往返均已通過；跑完 [`REVIEW.md`](../REVIEW.md) 的集中真實 LINE／Google 驗收後，才將同一候選升為正式 `6.0.0`。
 
 #### 6.0 升級與回滾
 

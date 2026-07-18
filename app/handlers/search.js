@@ -55,7 +55,7 @@ const exec = (context) => check(context) && (
     let trimmedText = context.trimmedText.replace(COMMAND_BOT_SEARCH.text, '');
     const prompt = getPrompt(context.userId);
     if (!config.SERPAPI_API_KEY) context.pushText(t('__ERROR_MISSING_ENV')('SERPAPI_API_KEY'));
-    let sources = [];
+    let sources;
     try {
       const result = await fetchAnswer(trimmedText);
       sources = result.sources || [];

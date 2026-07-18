@@ -75,7 +75,7 @@ Node.js 24 is required.
 npm ci
 cp .env.example .env    # fill in your keys
 npm run dev             # nodemon Express server
-npx eslint .            # eslint (airbnb config)
+npx eslint .            # ESLint flat config
 npm test                # jest
 ```
 
@@ -105,7 +105,7 @@ This project keeps **OpenAI + LINE, self-hosting, and user-supplied API keys** w
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.3`** builds on the production-verified durable-only candidate with feature-aware quick replies, an actual grouped `Command` list, localized Google OAuth pages, a Node 24 container baseline, compatible dependency maintenance, and a working issue-report destination for this independent repository. Final `6.0.0` waits only for one consolidated LINE/Google acceptance pass.
+- **`6.0.0-rc.4`** builds on the production-verified durable-only candidate with feature-aware quick replies, an actual grouped `Command` list, localized Google OAuth pages, a Node 24 container healthcheck, an Express 5/Jest 30/ESLint 10 maintenance baseline, and a working issue-report destination for this independent repository. Final `6.0.0` waits only for one consolidated LINE/Google acceptance pass.
 - **Google contract limits**: Calendar outbound CRUD and mapped timed non-recurring inbound plus mapped Tasks inbound/outbound are supported. Calendar all-day inbound, recurrence exceptions, Google-origin creation, and Tasks due-date inbound remain explicitly unsupported.
 - **Further model/API upgrades** — first pass done; new models must be re-verified against official documentation before use, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - **Adopt selected fermi architecture lessons** — rebuild reliability, persistence, observability in phases; do not merge fermi source code directly.

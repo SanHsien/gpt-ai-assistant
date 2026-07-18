@@ -83,7 +83,7 @@ Supabase Postgres 與 `0001`–`0018` migrations 是 6.0 的必要 runtime，不
 npm ci
 cp .env.example .env    # 填入你的金鑰
 npm run dev             # nodemon 起本機 Express
-npx eslint .            # eslint（airbnb config）
+npx eslint .            # ESLint flat config
 npm test                # jest
 ```
 
@@ -139,7 +139,7 @@ npm test                # jest
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.3`**：在已通過 Production migration、health、Cron 與 5.x ↔ RC 回滾往返的 durable-only 候選版上，完成 feature-aware Quick Reply／完整 `指令` 入口、Google OAuth locale、Node 24 容器基線、相容依賴維護與獨立 repo 的 Issue 回報入口。正式 `6.0.0` 只差一次集中 LINE／Google 驗收，見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+- **`6.0.0-rc.4`**：在已通過 Production migration、health、Cron 與 5.x ↔ RC 回滾往返的 durable-only 候選版上，完成 feature-aware Quick Reply／完整 `指令` 入口、Google OAuth locale、Node 24 容器 healthcheck、Express 5／Jest 30／ESLint 10 維護基線與獨立 repo 的 Issue 回報入口。正式 `6.0.0` 只差一次集中 LINE／Google 驗收，見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **Google contract 邊界**：Calendar outbound CRUD 與 mapped timed non-recurring inbound、Tasks mapped inbound/outbound 已納入契約；Calendar 全天 inbound、recurrence exception、Google-origin 建立，以及 Tasks due 回收仍明確不支援。
 - **模型與 API 進一步升級**——首輪已完成；新模型等待實作前對官方文件重核，見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **吸收 fermi 架構經驗**——分階段重做可靠性、持久化、觀測性；不直接合併 fermi 原始碼。
