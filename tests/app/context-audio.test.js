@@ -5,9 +5,13 @@ import {
 let fetchAudio;
 let generateTranscription;
 
-const load = async ({ maxBytes = 25 * 1024 * 1024, buffer = Buffer.from('audio') } = {}) => {
+const load = async ({
+  maxBytes = 25 * 1024 * 1024,
+  buffer = Buffer.from('audio'),
+  extension = '.m4a',
+} = {}) => {
   jest.resetModules();
-  fetchAudio = jest.fn().mockResolvedValue(buffer);
+  fetchAudio = jest.fn().mockResolvedValue({ buffer, extension });
   generateTranscription = jest.fn().mockResolvedValue({ text: '記行程 明天下午三點看診' });
   jest.doMock('../../config/index.js', () => ({
     __esModule: true,
@@ -57,6 +61,22 @@ test('desktop audio file keeps its extension when sent to transcription', async 
     buffer: Buffer.from('audio'),
   });
   expect(context.transcription).toBe('記行程 明天下午三點看診');
+});
+
+test('LINE audio message uses the downloaded content type extension', async () => {
+  const { Context, Event } = await load({ extension: '.mp3' });
+  const event = new Event({
+    type: 'message',
+    source: { type: 'user', userId: 'U1' },
+    message: { type: 'audio', id: 'audio-mp3' },
+  });
+
+  await new Context(event).transcribeAudio();
+
+  expect(generateTranscription).toHaveBeenCalledWith({
+    file: 'audio-mp3.mp3',
+    buffer: Buffer.from('audio'),
+  });
 });
 
 test('downloaded audio content is rejected when it exceeds the configured limit', async () => {

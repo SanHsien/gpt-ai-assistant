@@ -11,7 +11,7 @@
 ## 本專案的方向
 
 - **核心不變**：保留 OpenAI + LINE、自架、自備 API key；不整套重寫，也不任意更換預設供應商。
-- **已核准方向**：`5.0.0` 已完成 M1 真實 LINE 閉環；`6.0.0-rc.9` 收斂為 Supabase durable-only runtime、固定 queue、migration preflight、Google provider contract、最多 13 個 feature-aware LINE 快捷入口、完整 `指令` 清單、Node 24 container healthcheck、Express 5／Jest 30／ESLint 10 維護基線、Google Tasks dead sync job 安全恢復、週期行程當地鐘點校正、Google request／cron drain time budget、Calendar inbound 非展開系列同步，以及 LINE 桌面音訊檔轉錄。正式 `6.0.0` 須通過集中 LINE／Google 驗收。進階能力仍不可跳過 scheduler、delivery idempotency、recurrence round-trip 與衝突政策各自堆疊。
+- **已核准方向**：`5.0.0` 已完成 M1 真實 LINE 閉環；`6.0.0-rc.10` 收斂為 Supabase durable-only runtime、固定 queue、migration preflight、Google provider contract、最多 13 個 feature-aware LINE 快捷入口、完整 `指令` 清單、Node 24 container healthcheck、Express 5／Jest 30／ESLint 10 維護基線、Google Tasks dead sync job 安全恢復、週期行程當地鐘點校正、Google request／cron drain time budget、Calendar inbound 非展開系列同步，以及 LINE 桌面音訊檔轉錄與實際 content type 判斷。正式 `6.0.0` 須通過集中 LINE／Google 驗收。進階能力仍不可跳過 scheduler、delivery idempotency、recurrence round-trip 與衝突政策各自堆疊。
 - 模型／API、fermi、參考專案與授權邊界也統一維護在 [`docs/ROADMAP.md`](docs/ROADMAP.md)；不要直接合併 fermi 原始碼。
 - 未來可能的 Claude 版助理仍是候選，可能開新專案或在此 repo 分支，方式待定。
 - **已排除方向**：不要嘗試用 OpenAI / ChatGPT 訂閱 OAuth 取代 API key；官方目前將 ChatGPT 訂閱與 API usage 分開計費與管理，Codex 的 ChatGPT sign-in 也不是第三方 server-side bot 可用的 API OAuth。

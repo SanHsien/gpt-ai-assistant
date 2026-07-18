@@ -105,7 +105,7 @@ This project keeps **OpenAI + LINE, self-hosting, and user-supplied API keys** w
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.9`** retains rc.8 Calendar inbound behavior and adds supported LINE desktop audio-file transcription with a configurable size limit. Windows/macOS users can attach mp3/mp4/mpeg/mpga/m4a/wav/webm files when native voice recording is unavailable. Final `6.0.0` still requires the last LINE/Google acceptance check.
+- **`6.0.0-rc.10`** retains rc.8 Calendar inbound behavior and rc.9 desktop audio input, then uses the LINE Content API `Content-Type` or file magic bytes to preserve the actual MP3/WAV/M4A/WebM format. This fixes desktop audio attachments that LINE emits as `audio` webhooks instead of `file`. Final `6.0.0` still requires the last LINE/Google acceptance check.
 - **Google contract limits**: Calendar outbound CRUD and mapped timed non-recurring inbound plus mapped Tasks inbound/outbound are supported. Calendar all-day inbound, recurrence exceptions, Google-origin creation, and Tasks due-date inbound remain explicitly unsupported.
 - **Further model/API upgrades** — first pass done; new models must be re-verified against official documentation before use, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - **Adopt selected fermi architecture lessons** — rebuild reliability, persistence, observability in phases; do not merge fermi source code directly.

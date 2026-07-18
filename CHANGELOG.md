@@ -1,5 +1,10 @@
 # Changelog
 
+## [6.0.0-rc.10] - 2026-07-19
+
+- 真實 LINE Windows 驗收發現，桌面附加 WAV／MP3 會被 LINE 轉成 `audio` webhook，而不是保留成 `file`；過去 `audio` 路徑一律命名為 `.m4a`，會讓 OpenAI 收到副檔名與位元組格式不符的檔案並產生錯誤轉錄。
+- 下載音訊現在依 LINE Content API 回應的 `Content-Type` 選擇 `.mp3`／`.m4a`／`.wav`／`.webm`，泛用 content type 再以檔案 magic bytes 判斷；`file` webhook 仍保留原始白名單副檔名。
+
 ## [6.0.0-rc.9] - 2026-07-18
 
 - LINE Windows／Mac 不提供原生語音訊息錄製；新增 `file` webhook 的音訊副檔名白名單，桌面版附加 mp3／mp4／mpeg／mpga／m4a／wav／webm 時會走既有轉錄、指令、行程確認與 Google 同步流程。

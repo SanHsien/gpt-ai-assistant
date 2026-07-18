@@ -187,13 +187,15 @@ class Context {
   }
 
   async transcribeAudio() {
-    const buffer = await fetchAudio(this.event.messageId);
+    const { buffer, extension } = await fetchAudio(this.event.messageId);
     if (buffer.length > config.TRANSCRIPTION_MAX_BYTES) {
       throw new Error(t('__ERROR_AUDIO_TOO_LARGE')(
         Math.ceil(config.TRANSCRIPTION_MAX_BYTES / 1024 / 1024),
       ));
     }
-    const file = this.event.audioFileName;
+    const file = this.event.isAudioFile
+      ? this.event.audioFileName
+      : `${this.event.messageId}${extension}`;
     const { text } = await generateTranscription({ file, buffer });
     this.transcription = convertText(text);
   }
