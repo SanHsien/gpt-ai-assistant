@@ -1,0 +1,9 @@
+services:
+  app:
+    container_name: gpt-ai-assistant
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT:-3000}:${APP_PORT:-3000}"

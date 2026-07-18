@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # npm 相依：每週檢查，分開分組 prod / dev 的 PR
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Taipei"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+
+  # GitHub Actions（含 CodeQL workflow 用到的 action）自動更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Taipei"
+    labels:
+      - "dependencies"
+      - "github-actions"

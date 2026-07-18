@@ -1,0 +1,53 @@
+{
+  "name": "gpt-ai-assistant",
+  "version": "6.0.0-rc.3",
+  "description": "Self-hosted LINE assistant powered by OpenAI, Supabase, and Google Calendar/Tasks",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SanHsien/gpt-ai-assistant.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/SanHsien/gpt-ai-assistant/issues"
+  },
+  "homepage": "https://github.com/SanHsien/gpt-ai-assistant#readme",
+  "scripts": {
+    "db:migrate": "node scripts/migrate-database.js",
+    "db:preflight": "node scripts/check-runtime.js",
+    "db:configure-reminders": "node scripts/configure-reminder-cron.js",
+    "db:rollback": "node scripts/rollback-database.js",
+    "dev": "nodemon api/index.js",
+    "start": "node api/index.js",
+    "test": "jest",
+    "test:module-load": "node --input-type=module -e \"await Promise.all([import('./services/reminders.js'), import('./services/runtime-preflight.js'), import('./contracts/google-provider.js')])\""
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.6.1",
+    "@vercel/functions": "^3.7.5",
+    "axios": "^1.2.1",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.6.0",
+    "form-data": "^4.0.0",
+    "google-auth-library": "^10.9.0",
+    "gpt-3-encoder": "^1.1.4",
+    "html-to-text": "^9.0.5",
+    "opencc-js": "^1.4.1",
+    "pg": "^8.22.0",
+    "rrule": "2.8.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.5",
+    "@babel/preset-env": "^7.29.7",
+    "@jest/globals": "^29.7.0",
+    "babel-jest": "^29.7.0",
+    "eslint": "^8.57.1",
+    "eslint-config-airbnb": "^19.0.4",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.14"
+  }
+}

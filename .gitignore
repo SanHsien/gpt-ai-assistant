@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+
+# Secrets / env（絕不提交）
+.env
+.env.*
+!.env.example
+
+# Build / deploy
+.vercel
+dist
+build
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test / coverage
+coverage
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode
+.idea
+*.swp
+*.swo

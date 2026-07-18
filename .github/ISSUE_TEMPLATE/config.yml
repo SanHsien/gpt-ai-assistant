@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用與部署文件
+    url: https://sanhsien.github.io/gpt-ai-assistant-docs/
+    about: 提問前先查看安裝、設定與疑難排解。
+  - name: 安全性問題
+    url: https://github.com/SanHsien/gpt-ai-assistant/security/advisories/new
+    about: 金鑰、驗證、資料外洩等問題請私下回報，不要建立公開 issue。
