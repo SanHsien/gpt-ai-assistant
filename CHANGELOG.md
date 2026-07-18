@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.0.0-rc.5] - 2026-07-18
+
+- 真實 LINE／Google Tasks 驗收發現 OAuth 已授權 Tasks scope，但 Google Cloud 專案尚未啟用 Google Tasks API；README、部署文件與環境範例現在都把「在同一 OAuth project 另行啟用 Tasks API」列為開 flag 前的必要步驟。
+- `enqueuePendingGoogleTasks` 遇到相同 idempotency key 的 dead job 時，會在永久設定錯誤排除並重新 OAuth backfill 後安全重排該 job；pending、processing、done job 不變，避免建立複本。
+- 版本推進至 `6.0.0-rc.5`；正式 `6.0.0` 仍待集中 LINE／Google 驗收完成。
+
 ## [6.0.0-rc.4] - 2026-07-18
 
 ### Changed

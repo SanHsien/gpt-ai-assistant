@@ -41,6 +41,31 @@ test('enqueueJob returns null on duplicate idempotency key', async () => {
   expect(await enqueueJob({ kind: 'x' })).toBeNull();
 });
 
+test('reviveDeadJob requeues only a dead job with the matching idempotency key', async () => {
+  const { reviveDeadJob } = await load();
+  query.mockResolvedValue({ rows: [{
+    id: 'j-dead', status: 'pending', payload: { encrypted: { taskId: 't1' } },
+  }] });
+
+  const job = await reviveDeadJob('google-tasks-sync:t1:1:upsert');
+
+  expect(job).toEqual({
+    id: 'j-dead', status: 'pending', payload: { taskId: 't1' }, result: null,
+  });
+  const [sql, params] = query.mock.calls[0];
+  expect(sql).toMatch(/status = 'pending'/i);
+  expect(sql).toMatch(/attempts = 0/i);
+  expect(sql).toMatch(/last_error = null/i);
+  expect(sql).toMatch(/where idempotency_key = \$1 and status = 'dead'/i);
+  expect(params).toEqual(['google-tasks-sync:t1:1:upsert']);
+});
+
+test('reviveDeadJob does not touch pending, processing, or completed jobs', async () => {
+  const { reviveDeadJob } = await load();
+  query.mockResolvedValue({ rows: [] });
+  await expect(reviveDeadJob('k1')).resolves.toBeNull();
+});
+
 test('claimNextJob uses FOR UPDATE SKIP LOCKED and returns the claimed job', async () => {
   const { claimNextJob } = await load();
   query.mockResolvedValue({ rows: [{ id: 'j2', attempts: 1, payload: { encrypted: {} } }] });

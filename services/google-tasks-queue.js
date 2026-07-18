@@ -1,6 +1,6 @@
 import config from '../config/index.js';
 import { JOB_KINDS } from '../constants/jobs.js';
-import { enqueueJob } from '../repositories/jobs.js';
+import { enqueueJob, reviveDeadJob } from '../repositories/jobs.js';
 import { listUnsyncedTasks } from '../repositories/tasks.js';
 
 /**
@@ -10,12 +10,16 @@ import { listUnsyncedTasks } from '../repositories/tasks.js';
  */
 export const enqueuePendingGoogleTasks = async (ownerId) => {
   const tasks = await listUnsyncedTasks(ownerId);
-  await Promise.all(tasks.map((task) => enqueueJob({
-    kind: JOB_KINDS.GOOGLE_TASKS_SYNC,
-    payload: { ownerId, taskId: task.id, action: 'upsert' },
-    idempotencyKey: `google-tasks-sync:${task.id}:${task.version}:upsert`,
-    maxAttempts: config.WORKER_MAX_ATTEMPTS,
-  })));
+  await Promise.all(tasks.map(async (task) => {
+    const idempotencyKey = `google-tasks-sync:${task.id}:${task.version}:upsert`;
+    const enqueued = await enqueueJob({
+      kind: JOB_KINDS.GOOGLE_TASKS_SYNC,
+      payload: { ownerId, taskId: task.id, action: 'upsert' },
+      idempotencyKey,
+      maxAttempts: config.WORKER_MAX_ATTEMPTS,
+    });
+    if (!enqueued) await reviveDeadJob(idempotencyKey);
+  }));
   return tasks.length;
 };
 

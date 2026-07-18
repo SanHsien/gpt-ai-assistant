@@ -28,6 +28,25 @@ export const enqueueJob = async ({
 };
 
 /**
+ * 在永久設定錯誤已排除後，將同一 idempotency key 的 dead job 安全重排。
+ * pending、processing 與 done 都不變，避免重複執行仍在途或已完成的工作。
+ *
+ * @param {string} idempotencyKey
+ * @returns {Promise<Object|null>}
+ */
+export const reviveDeadJob = async (idempotencyKey) => {
+  const result = await query(
+    `UPDATE jobs
+     SET status = 'pending', run_at = now(), attempts = 0,
+         lease_until = null, lease_token = null, last_error = null, updated_at = now()
+     WHERE idempotency_key = $1 AND status = 'dead'
+     RETURNING *`,
+    [idempotencyKey],
+  );
+  return decryptJob(result.rows[0]);
+};
+
+/**
  * 原子領取一個到期的 pending job，或租約已過期的 processing job；
  * `FOR UPDATE SKIP LOCKED` 確保多 worker 併發時同一 job 只被一個領走。
  * 領取即 attempts+1 並設定租約。回傳領到的 job，或 null（無可領）。
@@ -188,6 +207,7 @@ export const retryOrFailJob = async (id, {
 
 export default {
   enqueueJob,
+  reviveDeadJob,
   claimNextJob,
   completeJob,
   retryOrFailJob,

@@ -158,6 +158,7 @@ adapters
 - [x] Supabase↔Google Task ID 映射與 migration（`0011`：`provider_task_id`／`sync_status`／`synced_at`）；`services/google-tasks.js` 複用 `authorizedRequest`（token 不進 log）。（task list 選擇目前用 `GOOGLE_TASKS_LIST_ID`，預設 `@default`；etag 樂觀鎖尚未做）
 - [x] 新增／完成／重開／刪除走 durable outbox（`google-tasks-sync` job、`idempotencyKey` 帶 `taskId:version:action`、有限重試）；4xx／未連結不重試，同步失敗只記 `sync_status='error'`、**本機任務一律保留不刪**。
 - [x] 授權後回填：OAuth callback 在取得 tasks scope 後呼叫 `enqueuePendingGoogleTasks`，自動入列既有未同步任務；回填與一般變更共用相同 idempotency key。
+- [x] 部署與永久錯誤恢復：同一 Google Cloud project 必須先啟用 Google Tasks API；`rc.5` 起，API／scope 等永久設定錯誤排除後再次 OAuth backfill，會安全重排相同 idempotency key 的 dead job，不重啟在途／已完成 job，也不建立任務複本。
 - [x] Google Tasks 的 `due` 只保留日期，且由 `task.timezone` 取當地日期，不會因 UTC 跨日偏移；精確時間仍存本機 `task.due_at`。
 - [x] 同一任務的多版本同步以 `SELECT ... FOR UPDATE` 序列化；刪除與 delete outbox 同 transaction。新增任務在 notes 附加穩定同步標記並於 POST 前查重，連「Google 已建立、Supabase 尚未存回 provider ID」的結果不明確重試也不會重複建立。
 - [x] Google Tasks inbound sync（`ENABLE_GOOGLE_TASKS_INBOUND`，預設關）：以 `updatedMin` 增量輪詢（Google Tasks 無 sync token）回收 Google 端的**完成／重開、刪除、標題、備註**到 Supabase。`services/google-tasks-inbound.js`＋`applyInboundTaskUpdate`＋`0014`／`0016` migration；成功水位只在完整拉取後提交，claim lease 防併發並讓 worker crash 後從原水位重抓。衝突政策對稱 Calendar inbound：本地 `sync_status='synced'` 才吃外部改、`pending` 讓 outbound 先贏、相同資料視為 echo、套用設 `synced` 防迴圈；不建立 Google-origin 新任務。重用 `/cron/reminders`。**`due` 不回收**，精確期限以本地為權威。
@@ -286,7 +287,7 @@ adapters
 
 語意化版本的 major 代表使用者或部署者必須處理的不相容變更，不代表 Phase 編號。只要新增功能仍與既有指令、環境變數與資料相容，就留在 `5.x`；不為了「路線圖走完」硬切 `6.0.0`。
 
-`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.4` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性與 Express／Jest／ESLint 維護基線，既有 Production 升級、Cron 與回滾往返已通過，現進入集中驗收：
+`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.5` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性、Express／Jest／ESLint 維護基線，以及 Google Tasks 永久設定錯誤的安全恢復，既有 Production 升級、Cron 與回滾往返已通過，現進入集中驗收：
 
 - [x] 提醒排程只有一個實作入口；到點、lead、週期與 inbound 修改共用相同 idempotency key 規則。
 - [x] 移除可由 durable jobs 推導的 `event_reminders` 第二份狀態（`0017`）。
@@ -331,6 +332,7 @@ adapters
 - `6.0.0-rc.2`：全域 Quick Reply 改為 feature-aware 的最多 13 個常用入口，`指令` 改為實際分組完整清單與範例，並完成 fork 可採用的選用圖文選單文件；供集中 LINE／Google 驗收。
 - `6.0.0-rc.3`：補齊英／日 locale 與 Google OAuth HTML、統一 Node 24 容器基線、更新同 major dependencies、修復獨立 repo 的 Issue 回報入口；正式版 gate 不變。
 - `6.0.0-rc.4`：完成 Express 5、Jest 30、ESLint 10 flat config、bot-source repository 注入，以及 Docker port／liveness／CI image smoke；LINE 與 durable 資料契約不變。
+- `6.0.0-rc.5`：實機驗收確認 Google Tasks API 必須在 OAuth project 另行啟用；補強部署文件，並讓重新 OAuth backfill 可安全重排相同 idempotency key 的 dead Tasks sync job。
 - 後續 `5.x`：只做向後相容的功能、可靠性與文件改善；版本可持續增加，不預設一定要到哪個 minor。
 - `6.0.0`：RC 已在既有 Production 完成 migration、Cron 與回滾演練；集中 LINE／Supabase／Google 驗收通過後發布。
 
