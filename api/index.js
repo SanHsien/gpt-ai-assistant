@@ -126,6 +126,7 @@ app.post('/cron/reminders', async (req, res) => {
     if (config.ENABLE_GOOGLE_TASKS_INBOUND) await enqueueDueTasksInbound();
     const summary = await drainQueue({
       maxJobs: config.REMINDER_WORKER_MAX_JOBS,
+      maxDurationMs: config.REMINDER_WORKER_TIME_BUDGET_MS,
       kinds: [
         JOB_KINDS.LINE_REMINDER,
         JOB_KINDS.GOOGLE_CALENDAR_SYNC,

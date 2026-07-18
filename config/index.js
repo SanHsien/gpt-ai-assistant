@@ -46,6 +46,7 @@ const config = Object.freeze({
   ENABLE_REMINDERS: env.ENABLE_REMINDERS === 'true' || false,
   REMINDER_CRON_SECRET: env.REMINDER_CRON_SECRET || null,
   REMINDER_WORKER_MAX_JOBS: Number(env.REMINDER_WORKER_MAX_JOBS) || 20,
+  REMINDER_WORKER_TIME_BUDGET_MS: Number(env.REMINDER_WORKER_TIME_BUDGET_MS) || 45000,
   // 提醒晚於預定時刻超過這麼多分鐘就視為過期，跳過不送（避免 worker 停機恢復後補送陳舊提醒）。
   REMINDER_STALE_MINUTES: Number(env.REMINDER_STALE_MINUTES) || 120,
   // 多重（lead）提醒：除了到點提醒，額外在「提前 N 分鐘」各排一個提醒。逗號分隔的正整數分鐘，
@@ -61,6 +62,7 @@ const config = Object.freeze({
   GOOGLE_OAUTH_REDIRECT_URI: env.GOOGLE_OAUTH_REDIRECT_URI || null,
   GOOGLE_CALENDAR_ID: env.GOOGLE_CALENDAR_ID || 'primary',
   GOOGLE_OAUTH_STATE_TTL: Number(env.GOOGLE_OAUTH_STATE_TTL) || 600,
+  GOOGLE_REQUEST_TIMEOUT_MS: Number(env.GOOGLE_REQUEST_TIMEOUT_MS) || 10000,
   // Google Calendar → 本地 inbound 同步（sync token 輪詢）。需開 ENABLE_GOOGLE_CALENDAR。
   // 節流：每個帳號至少間隔 CALENDAR_INBOUND_INTERVAL 秒才輪詢一次；每次 cron 最多挑幾個帳號。
   ENABLE_GOOGLE_CALENDAR_INBOUND: env.ENABLE_GOOGLE_CALENDAR_INBOUND === 'true' || false,

@@ -14,6 +14,7 @@ let markEventSyncError;
 let enqueueJob;
 let withTransaction;
 let enqueuePendingGoogleTasks;
+let OAuth2Client;
 
 const ACCOUNT = {
   owner_id: 'u1',
@@ -35,7 +36,8 @@ const load = async (configOverrides = {}) => {
     getAccessToken: jest.fn().mockResolvedValue({ token: 'access' }),
     request: jest.fn(),
   };
-  jest.doMock('google-auth-library', () => ({ OAuth2Client: jest.fn(() => oauth) }));
+  OAuth2Client = jest.fn(() => oauth);
+  jest.doMock('google-auth-library', () => ({ OAuth2Client }));
   jest.doMock('../../config/index.js', () => ({
     __esModule: true,
     default: {
@@ -45,6 +47,7 @@ const load = async (configOverrides = {}) => {
       GOOGLE_OAUTH_REDIRECT_URI: 'https://example.com/oauth/google/callback',
       GOOGLE_CALENDAR_ID: 'primary',
       GOOGLE_OAUTH_STATE_TTL: 600,
+      GOOGLE_REQUEST_TIMEOUT_MS: 10000,
       SCHEDULE_DEFAULT_TIMEZONE: 'Asia/Taipei',
       WORKER_MAX_ATTEMPTS: 3,
       ...configOverrides,
@@ -102,6 +105,15 @@ test('authorization URL uses offline access, narrow scope, and stored random sta
     scope: [GOOGLE_CALENDAR_SCOPE],
     code_challenge_method: 'S256',
     code_challenge: 'challenge',
+  }));
+});
+
+test('OAuth transport applies a bounded timeout to token refresh and Google API calls', async () => {
+  const { authorizedRequest } = await load({ GOOGLE_REQUEST_TIMEOUT_MS: 7500 });
+  oauth.request.mockResolvedValue({ data: {} });
+  await authorizedRequest('u1', { method: 'GET', url: 'https://www.googleapis.com/test' });
+  expect(OAuth2Client).toHaveBeenCalledWith(expect.objectContaining({
+    transporterOptions: { timeout: 7500 },
   }));
 });
 

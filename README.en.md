@@ -105,7 +105,7 @@ This project keeps **OpenAI + LINE, self-hosting, and user-supplied API keys** w
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.6`** retains the durable-only, toolchain, container, command-entry, and Tasks recovery baseline while fixing a double-applied UTC offset for explicit recurring times, routing recurring phrases directly into scheduling, and showing recurrence before confirmation. Final `6.0.0` still requires the remaining consolidated LINE/Google acceptance checks.
+- **`6.0.0-rc.7`** retains rc.6 recurring-time behavior while adding a 10-second Google token/API request timeout and a default 45-second Cron drain budget, preventing a slow provider call from exhausting the Vercel function limit. Final `6.0.0` still requires the remaining consolidated LINE/Google acceptance checks.
 - **Google contract limits**: Calendar outbound CRUD and mapped timed non-recurring inbound plus mapped Tasks inbound/outbound are supported. Calendar all-day inbound, recurrence exceptions, Google-origin creation, and Tasks due-date inbound remain explicitly unsupported.
 - **Further model/API upgrades** — first pass done; new models must be re-verified against official documentation before use, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - **Adopt selected fermi architecture lessons** — rebuild reliability, persistence, observability in phases; do not merge fermi source code directly.

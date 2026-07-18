@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.0.0-rc.7] - 2026-07-18
+
+- 實機進階提醒雖成功送達，但 Vercel logs 揭露 Google Calendar inbound 偶發拖滿 60 秒；Google OAuth transport 現以 `GOOGLE_REQUEST_TIMEOUT_MS`（預設 10000）同時限制 token refresh 與 API 呼叫。
+- `/cron/reminders` 傳入 `REMINDER_WORKER_TIME_BUDGET_MS`（預設 45000）作 drain 總預算；到期即停止再 claim，剩餘 durable jobs 留給下一分鐘，不讓慢 provider 阻塞提醒。
+- 版本推進至 `6.0.0-rc.7`；正式 `6.0.0` 仍待最後語音與 RC.7 Cron 穩定性驗收。
+
 ## [6.0.0-rc.6] - 2026-07-18
 
 - 修正週期行程的明確鐘點可能被模型重複套用 UTC offset；`每天 22:40` 與 `每天晚上十點四十分` 現由程式依使用者時區鎖定為相同 wall clock，若當日鐘點已過則從次日開始。

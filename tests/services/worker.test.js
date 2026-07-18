@@ -246,7 +246,7 @@ test('drainQueue claims jobs until the queue is empty', async () => {
     .mockResolvedValueOnce(null);
   const summary = await drainQueue({ leaseSeconds: 30 });
   expect(summary).toEqual({
-    claimed: 2, done: 2, retried: 0, dead: 0, stale: 0,
+    claimed: 2, done: 2, retried: 0, dead: 0, stale: 0, budgetExhausted: false,
   });
   expect(claimNextJob).toHaveBeenCalledWith({ leaseSeconds: 30, kinds: null });
 });
@@ -281,6 +281,19 @@ test('drainQueue tallies retried, dead and stale jobs without throwing', async (
     .mockResolvedValueOnce('stale');
   const summary = await drainQueue();
   expect(summary).toEqual({
-    claimed: 3, done: 0, retried: 1, dead: 1, stale: 1,
+    claimed: 3, done: 0, retried: 1, dead: 1, stale: 1, budgetExhausted: false,
   });
+});
+
+test('drainQueue stops before claiming another job when its time budget is exhausted', async () => {
+  const now = jest.spyOn(Date, 'now')
+    .mockReturnValueOnce(0)
+    .mockReturnValueOnce(0)
+    .mockReturnValue(2);
+  const { drainQueue } = await load();
+  claimNextJob.mockResolvedValue({ id: 'j1' });
+  const summary = await drainQueue({ maxJobs: 5, maxDurationMs: 1 });
+  expect(summary).toMatchObject({ claimed: 1, done: 1, budgetExhausted: true });
+  expect(claimNextJob).toHaveBeenCalledTimes(1);
+  now.mockRestore();
 });

@@ -139,7 +139,7 @@ npm test                # jest
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.6`**：延續 durable-only、工具鏈、容器與 Tasks 恢復基線；修正週期行程的明確鐘點被重複套用 UTC offset，讓週期語句可直接進行程流程，並在確認卡顯示重複規則。正式 `6.0.0` 仍須完成剩餘集中 LINE／Google 驗收，見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+- **`6.0.0-rc.7`**：延續 rc.6 的週期時區修正，為 Google token／API 呼叫加 10 秒 timeout，並限制 Cron 單次 drain 預設 45 秒，避免慢 provider 把 Vercel function 拖到平台 timeout。正式 `6.0.0` 仍須完成剩餘集中 LINE／Google 驗收，見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **Google contract 邊界**：Calendar outbound CRUD 與 mapped timed non-recurring inbound、Tasks mapped inbound/outbound 已納入契約；Calendar 全天 inbound、recurrence exception、Google-origin 建立，以及 Tasks due 回收仍明確不支援。
 - **模型與 API 進一步升級**——首輪已完成；新模型等待實作前對官方文件重核，見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **吸收 fermi 架構經驗**——分階段重做可靠性、持久化、觀測性；不直接合併 fermi 原始碼。

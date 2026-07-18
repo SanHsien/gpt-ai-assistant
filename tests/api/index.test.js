@@ -65,6 +65,7 @@ const load = async ({
         ? 'a-very-long-random-reminder-secret'
         : null,
       REMINDER_WORKER_MAX_JOBS: 20,
+      REMINDER_WORKER_TIME_BUDGET_MS: 45000,
     },
   }));
   jest.doMock('../../middleware/index.js', () => ({ validateLineSignature: jest.fn() }));
@@ -219,6 +220,7 @@ test('minute cron drains reminders and Google Calendar delivery jobs', async () 
   }, res);
   expect(drainQueue).toHaveBeenCalledWith({
     maxJobs: 20,
+    maxDurationMs: 45000,
     kinds: [
       'line-reminder',
       'google-calendar-sync',

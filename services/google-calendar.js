@@ -47,11 +47,14 @@ const requireConfiguration = () => {
   }
 };
 
-const makeOAuthClient = () => new OAuth2Client(
-  config.GOOGLE_CLIENT_ID,
-  config.GOOGLE_CLIENT_SECRET,
-  config.GOOGLE_OAUTH_REDIRECT_URI,
-);
+const makeOAuthClient = () => new OAuth2Client({
+  clientId: config.GOOGLE_CLIENT_ID,
+  clientSecret: config.GOOGLE_CLIENT_SECRET,
+  redirectUri: config.GOOGLE_OAUTH_REDIRECT_URI,
+  // 同時約束 token refresh 與 Google API 呼叫，避免單一 provider request
+  // 把 Vercel cron function 拖到平台 60 秒 timeout。
+  transporterOptions: { timeout: config.GOOGLE_REQUEST_TIMEOUT_MS },
+});
 
 /**
  * @param {string} ownerId

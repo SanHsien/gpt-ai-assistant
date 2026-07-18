@@ -287,7 +287,7 @@ adapters
 
 語意化版本的 major 代表使用者或部署者必須處理的不相容變更，不代表 Phase 編號。只要新增功能仍與既有指令、環境變數與資料相容，就留在 `5.x`；不為了「路線圖走完」硬切 `6.0.0`。
 
-`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.6` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性、Express／Jest／ESLint 維護基線、Google Tasks 永久設定錯誤的安全恢復，以及週期行程當地鐘點校正與可見確認規則；既有 Production 升級、Cron 與回滾往返已通過，現進入集中驗收：
+`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.7` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性、Express／Jest／ESLint 維護基線、Google Tasks 永久設定錯誤恢復、週期行程當地鐘點校正，以及 Google request／cron drain time budget；既有 Production 升級、Cron 與回滾往返已通過，現進入集中驗收：
 
 - [x] 提醒排程只有一個實作入口；到點、lead、週期與 inbound 修改共用相同 idempotency key 規則。
 - [x] 移除可由 durable jobs 推導的 `event_reminders` 第二份狀態（`0017`）。
@@ -334,6 +334,7 @@ adapters
 - `6.0.0-rc.4`：完成 Express 5、Jest 30、ESLint 10 flat config、bot-source repository 注入，以及 Docker port／liveness／CI image smoke；LINE 與 durable 資料契約不變。
 - `6.0.0-rc.5`：實機驗收確認 Google Tasks API 必須在 OAuth project 另行啟用；補強部署文件，並讓重新 OAuth backfill 可安全重排相同 idempotency key 的 dead Tasks sync job。
 - `6.0.0-rc.6`：實機驗收發現週期行程明確鐘點可能被模型重複套用 UTC offset；改由程式依使用者時區鎖定 wall clock，週期開頭語句可直接進行程流程，確認摘要明列重複規則。
+- `6.0.0-rc.7`：進階提醒實機送達時發現 Google inbound 偶發拖滿 Vercel 60 秒；加入 Google transport timeout 與 Cron drain 總預算，剩餘 durable jobs 延至下一分鐘。
 - 後續 `5.x`：只做向後相容的功能、可靠性與文件改善；版本可持續增加，不預設一定要到哪個 minor。
 - `6.0.0`：RC 已在既有 Production 完成 migration、Cron 與回滾演練；集中 LINE／Supabase／Google 驗收通過後發布。
 

@@ -136,18 +136,24 @@ export const handleJob = async (job) => {
 /**
  * 逐一領取並執行到期的 job，直到沒得領或達 maxJobs。
  * 任一 job 失敗都由 runJob 收斂成重試／dead-letter，不會中斷整個 drain。
- * @param {{ maxJobs?: number, leaseSeconds?: number, kinds?: string[]|null }} [opts]
- * @returns {Promise<{ claimed: number, done: number, retried: number, dead: number, stale: number }>}
+ * @param {{ maxJobs?: number, leaseSeconds?: number, kinds?: string[]|null, maxDurationMs?: number|null }} [opts]
+ * @returns {Promise<{ claimed: number, done: number, retried: number, dead: number, stale: number, budgetExhausted: boolean }>}
  */
 export const drainQueue = async ({
   maxJobs = config.WORKER_MAX_JOBS,
   leaseSeconds = config.WORKER_LEASE_SECONDS,
   kinds = null,
+  maxDurationMs = null,
 } = {}) => {
+  const startedAt = Date.now();
   const summary = {
-    claimed: 0, done: 0, retried: 0, dead: 0, stale: 0,
+    claimed: 0, done: 0, retried: 0, dead: 0, stale: 0, budgetExhausted: false,
   };
   for (let i = 0; i < maxJobs; i += 1) {
+    if (maxDurationMs != null && Date.now() - startedAt >= maxDurationMs) {
+      summary.budgetExhausted = true;
+      break;
+    }
     // eslint-disable-next-line no-await-in-loop
     const job = await claimNextJob({ leaseSeconds, kinds });
     if (!job) break;
