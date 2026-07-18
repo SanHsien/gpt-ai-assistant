@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.0.0-rc.8] - 2026-07-18
+
+- 追查 rc.7 正式環境後確認 Calendar inbound 的真正瓶頸是 `singleEvents=true`：無截止日的每日週期會被 Google 展開成大量 instances，造成連續 60 秒 Cron timeout。
+- inbound 改用非展開的 recurring series、只比對 bot 管理的 `gpta*` 事件並明確忽略 recurrence instances；單頁上限提高至 2500，減少 serverless 內的累積 API round trips。
+- 新增 `0019_calendar_sync_query_version.sql`；既有 v1 sync cursor 只重建一次，新帳號直接使用 v2 系列模式。
+
 ## [6.0.0-rc.7] - 2026-07-18
 
 - 實機進階提醒雖成功送達，但 Vercel logs 揭露 Google Calendar inbound 偶發拖滿 60 秒；Google OAuth transport 現以 `GOOGLE_REQUEST_TIMEOUT_MS`（預設 10000）同時限制 token refresh 與 API 呼叫。

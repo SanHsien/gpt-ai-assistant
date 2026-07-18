@@ -103,12 +103,15 @@ export const consumeOAuthState = async (state) => withTransaction(async (client)
  * 存 Google Calendar 增量同步 token（同步游標，非憑證，明文即可）。
  * @param {string} ownerId
  * @param {string|null} token
+ * @param {number} [queryVersion]
  * @returns {Promise<void>}
  */
-export const saveSyncToken = async (ownerId, token) => {
+export const saveSyncToken = async (ownerId, token, queryVersion = 2) => {
   await query(
-    'UPDATE calendar_accounts SET sync_token = $2, updated_at = now() WHERE owner_id = $1',
-    [ownerId, token],
+    `UPDATE calendar_accounts
+     SET sync_token = $2, sync_query_version = $3, updated_at = now()
+     WHERE owner_id = $1`,
+    [ownerId, token, queryVersion],
   );
 };
 

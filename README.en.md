@@ -59,11 +59,11 @@ An incomplete event remains a durable structured draft, never raw conversation t
 
 1. **Get your keys** — OpenAI, LINE, SerpAPI (or disable search), plus a Supabase pooler URL, CA, and data-encryption key.
 2. **Deploy to Vercel** — import this repo and set all required runtime variables as Production Sensitive values.
-3. **Migrate and preflight** — run `npm run db:migrate` through `0018`, then `npm run db:preflight`.
+3. **Migrate and preflight** — run `npm run db:migrate` through `0019`, then `npm run db:preflight`.
 4. **Set the LINE webhook** — point your LINE channel's Webhook URL to `{your-url}/webhook` and enable it.
 5. **Start chatting** — add the LINE official account as a friend and send a message.
 
-Version 6.0 requires Supabase Postgres with migrations `0001`–`0018`; there is no synchronous or Vercel-environment storage fallback. Health checks and webhooks fail closed when durable configuration, the database, or migrations are unavailable. Reminders also require Supabase Cron to call the protected worker endpoint every minute. Enable tasks and weather with `ENABLE_TASKS` and `ENABLE_WEATHER`. Google Calendar and Tasks additionally require a Web OAuth client, Vercel Production Sensitive environment variables, and both **Google Calendar API** and **Google Tasks API** enabled in the same Google Cloud project; granting the Tasks OAuth scope does not enable its API. Follow the deployment checklist in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#完整上線順序): enable APIs, apply migrations, and configure Cron before enabling flags and redeploying. After enabling `ENABLE_GOOGLE_TASKS`, send `Connect Google Calendar` again to grant the Tasks scope and backfill existing unsynced tasks. If synchronization previously failed because the API was disabled, enable it and reconnect; `rc.5` safely revives the same dead sync job instead of creating another task.
+Version 6.0 requires Supabase Postgres with migrations `0001`–`0019`; there is no synchronous or Vercel-environment storage fallback. Health checks and webhooks fail closed when durable configuration, the database, or migrations are unavailable. Reminders also require Supabase Cron to call the protected worker endpoint every minute. Enable tasks and weather with `ENABLE_TASKS` and `ENABLE_WEATHER`. Google Calendar and Tasks additionally require a Web OAuth client, Vercel Production Sensitive environment variables, and both **Google Calendar API** and **Google Tasks API** enabled in the same Google Cloud project; granting the Tasks OAuth scope does not enable its API. Follow the deployment checklist in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#完整上線順序): enable APIs, apply migrations, and configure Cron before enabling flags and redeploying. After enabling `ENABLE_GOOGLE_TASKS`, send `Connect Google Calendar` again to grant the Tasks scope and backfill existing unsynced tasks. If synchronization previously failed because the API was disabled, enable it and reconnect; `rc.5` safely revives the same dead sync job instead of creating another task.
 
 See [`.env.example`](.env.example) for the full variable list and `config/index.js` for defaults.
 
@@ -105,7 +105,7 @@ This project keeps **OpenAI + LINE, self-hosting, and user-supplied API keys** w
 
 ### 6.0 release candidate
 
-- **`6.0.0-rc.7`** retains rc.6 recurring-time behavior while adding a 10-second Google token/API request timeout and a default 45-second Cron drain budget, preventing a slow provider call from exhausting the Vercel function limit. Final `6.0.0` still requires the remaining consolidated LINE/Google acceptance checks.
+- **`6.0.0-rc.8`** switches Calendar inbound to non-expanded recurring-series sync, ignores recurrence instances, and uses migration `0019` to rebuild legacy v1 cursors safely. This prevents open-ended daily series from exhausting the Cron runtime. Final `6.0.0` still requires the remaining consolidated LINE/Google acceptance checks.
 - **Google contract limits**: Calendar outbound CRUD and mapped timed non-recurring inbound plus mapped Tasks inbound/outbound are supported. Calendar all-day inbound, recurrence exceptions, Google-origin creation, and Tasks due-date inbound remain explicitly unsupported.
 - **Further model/API upgrades** — first pass done; new models must be re-verified against official documentation before use, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - **Adopt selected fermi architecture lessons** — rebuild reliability, persistence, observability in phases; do not merge fermi source code directly.

@@ -59,11 +59,13 @@ test('first pull with no sync_token only establishes a baseline, deleting nothin
   const result = await pullCalendarChanges('o1');
   expect(result).toEqual({ changed: 0, baseline: true });
   expect(deleteEventByProviderId).not.toHaveBeenCalled();
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-1');
+  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-1', 2);
   // 首拉不帶 syncToken，帶 timeMin 建立基線。
   const { params } = authorizedRequest.mock.calls[0][1];
   expect(params.syncToken).toBeUndefined();
   expect(params.timeMin).toBeDefined();
+  expect(params.singleEvents).toBe(false);
+  expect(params.maxResults).toBe(2500);
 });
 
 test('incremental pull reclaims Google-side deletions and counts only removed rows', async () => {
@@ -73,23 +75,27 @@ test('incremental pull reclaims Google-side deletions and counts only removed ro
     response: {
       data: {
         items: [
-          { id: 'e1', status: 'cancelled' },
-          { id: 'e2', status: 'cancelled' },
-          { id: 'e3', status: 'confirmed' },
+          { id: 'gptae1', status: 'cancelled' },
+          { id: 'gptae2', status: 'cancelled' },
+          { id: 'gptae3', status: 'confirmed' },
+          { id: 'gpta-series_20260720', recurringEventId: 'gpta-series', status: 'cancelled' },
+          { id: 'unrelated', status: 'cancelled' },
         ],
         nextSyncToken: 'tok-2',
       },
     },
   });
-  // e1 存在本地被刪到，e2 本地沒有 → 只算 1。
-  deleteEventByProviderId.mockImplementation((_o, id) => Promise.resolve(id === 'e1'));
+  // gptae1 存在本地被刪到，gptae2 本地沒有 → 只算 1。
+  deleteEventByProviderId.mockImplementation((_o, id) => Promise.resolve(id === 'gptae1'));
   const result = await pullCalendarChanges('o1');
   expect(result).toEqual({ changed: 1 });
-  expect(authorizedRequest.mock.calls[0][1].params.singleEvents).toBe(true);
-  expect(deleteEventByProviderId).toHaveBeenCalledWith('o1', 'e1');
-  expect(deleteEventByProviderId).toHaveBeenCalledWith('o1', 'e2');
-  expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'e3');
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-2');
+  expect(authorizedRequest.mock.calls[0][1].params.singleEvents).toBe(false);
+  expect(deleteEventByProviderId).toHaveBeenCalledWith('o1', 'gptae1');
+  expect(deleteEventByProviderId).toHaveBeenCalledWith('o1', 'gptae2');
+  expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'gptae3');
+  expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'gpta-series_20260720');
+  expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'unrelated');
+  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-2', 2);
 });
 
 test('a 410 GONE clears the sync token so the next run rebuilds a baseline', async () => {
@@ -98,7 +104,7 @@ test('a 410 GONE clears the sync token so the next run rebuilds a baseline', asy
   authorizedRequest.mockRejectedValue(Object.assign(new Error('gone'), { response: { status: 410 } }));
   const result = await pullCalendarChanges('o1');
   expect(result).toEqual({ changed: 0, reset: true });
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', null);
+  expect(saveSyncToken).toHaveBeenCalledWith('o1', null, 2);
 });
 
 test('incremental pull follows pageToken and saves the final nextSyncToken', async () => {
@@ -106,17 +112,17 @@ test('incremental pull follows pageToken and saves the final nextSyncToken', asy
   getCalendarAccount.mockResolvedValue({ owner_id: 'o1', calendar_id: 'primary', sync_token: 'tok-1' });
   authorizedRequest
     .mockResolvedValueOnce({
-      response: { data: { items: [{ id: 'e1', status: 'cancelled' }], nextPageToken: 'p2' } },
+      response: { data: { items: [{ id: 'gptae1', status: 'cancelled' }], nextPageToken: 'p2' } },
     })
     .mockResolvedValueOnce({
-      response: { data: { items: [{ id: 'e2', status: 'cancelled' }], nextSyncToken: 'tok-final' } },
+      response: { data: { items: [{ id: 'gptae2', status: 'cancelled' }], nextSyncToken: 'tok-final' } },
     });
   deleteEventByProviderId.mockResolvedValue(true);
   const result = await pullCalendarChanges('o1');
   expect(result).toEqual({ changed: 2 });
   expect(authorizedRequest).toHaveBeenCalledTimes(2);
   expect(authorizedRequest.mock.calls[1][1].params.pageToken).toBe('p2');
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-final');
+  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-final', 2);
 });
 
 test('fromGoogleEvent maps a timed event and skips all-day / recurring / cancelled / bare', async () => {
@@ -149,6 +155,23 @@ test('fromGoogleEvent maps a timed event and skips all-day / recurring / cancell
     id: 'c', status: 'confirmed', summary: 'x', start: { dateTime: '2026-07-20T06:00:00Z' }, recurrence: ['RRULE:FREQ=WEEKLY'],
   })).toBeNull();
   expect(fromGoogleEvent({ id: 'd', status: 'confirmed', start: { dateTime: '2026-07-20T06:00:00Z' } })).toBeNull();
+  expect(fromGoogleEvent({
+    id: 'gpta1_20260720T060000Z',
+    recurringEventId: 'gpta1',
+    status: 'confirmed',
+    summary: '週期實例',
+    start: { dateTime: '2026-07-20T06:00:00Z' },
+  })).toBeNull();
+});
+
+test('v1 expanded-instance cursor is cleared before rebuilding a series-mode baseline', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: 'v1-token', sync_query_version: 1,
+  });
+  await expect(pullCalendarChanges('o1')).resolves.toEqual({ changed: 0, reset: true });
+  expect(saveSyncToken).toHaveBeenCalledWith('o1', null, 2);
+  expect(authorizedRequest).not.toHaveBeenCalled();
 });
 
 test('incremental pull applies external modifications and counts applied ones', async () => {
@@ -218,5 +241,5 @@ test('handleCalendarInbound pulls changes for the job owner', async () => {
   authorizedRequest.mockResolvedValue({ response: { data: { items: [], nextSyncToken: 'tok-2' } } });
   await handleCalendarInbound({ payload: { ownerId: 'o1' } });
   expect(authorizedRequest).toHaveBeenCalled();
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-2');
+  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-2', 2);
 });

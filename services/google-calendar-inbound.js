@@ -13,6 +13,8 @@ import { authorizedRequest } from './google-calendar.js';
 import { getDefaultReminderTime } from './reminders.js';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
+const SYNC_QUERY_VERSION = 2;
+const isManagedEvent = (item) => item?.id?.startsWith('gpta') && !item.recurringEventId;
 
 /**
  * Google Calendar event → 本地 event draft（反向 toGoogleEvent）。
@@ -23,7 +25,9 @@ const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
  */
 export const fromGoogleEvent = (item) => {
   if (!item || item.status === 'cancelled') return null;
-  if (Array.isArray(item.recurrence) && item.recurrence.length > 0) return null;
+  if (item.recurringEventId || (Array.isArray(item.recurrence) && item.recurrence.length > 0)) {
+    return null;
+  }
   const summary = typeof item.summary === 'string' ? item.summary.trim() : '';
   if (!summary) return null;
   const startDateTime = item.start?.dateTime;
@@ -56,12 +60,19 @@ export const pullCalendarChanges = async (ownerId) => {
   const account = await getCalendarAccount(ownerId);
   if (!account) return { changed: 0 };
 
+  // v1 使用 singleEvents=true，無截止日的週期行程會展開成大量 occurrence。
+  // 0019 將既有帳號標成 v1；先清游標，下一輪以系列模式重建 baseline。
+  if ((account.sync_query_version ?? SYNC_QUERY_VERSION) !== SYNC_QUERY_VERSION) {
+    await saveSyncToken(ownerId, null, SYNC_QUERY_VERSION);
+    return { changed: 0, reset: true };
+  }
+
   const calendarId = encodeURIComponent(account.calendar_id || config.GOOGLE_CALENDAR_ID);
   const incremental = Boolean(account.sync_token);
   const baseParams = incremental
-    ? { syncToken: account.sync_token, singleEvents: true }
+    ? { syncToken: account.sync_token, singleEvents: false }
     // 首拉：限縮到「現在起」，避免拉整段歷史；showDeleted 對增量才有意義。
-    : { timeMin: new Date().toISOString(), singleEvents: true };
+    : { timeMin: new Date().toISOString(), singleEvents: false };
 
   let pageToken;
   let nextSyncToken;
@@ -76,14 +87,16 @@ export const pullCalendarChanges = async (ownerId) => {
         params: {
           ...baseParams,
           showDeleted: true,
-          maxResults: 250,
+          // Calendar API 上限為 2500；系列模式不展開 recurring instances，放大頁面可避免
+          // 大型日曆因多次 request 累積超過 serverless 執行時限。
+          maxResults: 2500,
           ...(pageToken ? { pageToken } : {}),
         },
       });
       const data = response.data || {};
 
       if (incremental) {
-        const items = (data.items || []).filter((item) => item.id);
+        const items = (data.items || []).filter(isManagedEvent);
         // 外部刪除／取消 → 回收本地事件列。
         const cancelled = items.filter((item) => item.status === 'cancelled');
         // eslint-disable-next-line no-await-in-loop
@@ -115,11 +128,11 @@ export const pullCalendarChanges = async (ownerId) => {
       nextSyncToken = data.nextSyncToken || nextSyncToken;
     } while (pageToken);
 
-    if (nextSyncToken) await saveSyncToken(ownerId, nextSyncToken);
+    if (nextSyncToken) await saveSyncToken(ownerId, nextSyncToken, SYNC_QUERY_VERSION);
     return incremental ? { changed } : { changed, baseline: true };
   } catch (err) {
     if (err.response?.status === 410) {
-      await saveSyncToken(ownerId, null);
+      await saveSyncToken(ownerId, null, SYNC_QUERY_VERSION);
       return { changed, reset: true };
     }
     throw err;

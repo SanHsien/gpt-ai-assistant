@@ -21,7 +21,7 @@ const BASE_CONFIG = {
 
 const load = async (config = BASE_CONFIG) => {
   jest.resetModules();
-  query = jest.fn().mockResolvedValue({ rows: [{ name: '0018_durable_sources.sql' }] });
+  query = jest.fn().mockResolvedValue({ rows: [{ name: '0019_calendar_sync_query_version.sql' }] });
   jest.doMock('../../config/index.js', () => ({ __esModule: true, default: config }));
   jest.doMock('../../services/database.js', () => ({ query }));
   return import('../../services/runtime-preflight.js');
@@ -52,16 +52,16 @@ test('requires Google and cron credentials only when those capabilities are enab
 test('requires the latest migration before accepting traffic', async () => {
   const preflight = await load();
   query.mockResolvedValueOnce({ rows: [] });
-  await expect(preflight.ensureRuntimeReady()).rejects.toThrow('0018_durable_sources.sql');
+  await expect(preflight.ensureRuntimeReady()).rejects.toThrow('0019_calendar_sync_query_version.sql');
 });
 
 test('passes once runtime configuration and the latest migration are present', async () => {
   const preflight = await load();
   await expect(preflight.ensureRuntimeReady()).resolves.toEqual(expect.objectContaining({
-    latestMigration: '0018_durable_sources.sql',
+    latestMigration: '0019_calendar_sync_query_version.sql',
   }));
   expect(query).toHaveBeenCalledWith(
     expect.stringMatching(/schema_migrations/i),
-    ['0018_durable_sources.sql'],
+    ['0019_calendar_sync_query_version.sql'],
   );
 });

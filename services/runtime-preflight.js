@@ -1,7 +1,7 @@
 import config from '../config/index.js';
 import { query } from './database.js';
 
-export const LATEST_MIGRATION = '0018_durable_sources.sql';
+export const LATEST_MIGRATION = '0019_calendar_sync_query_version.sql';
 
 const missing = (keys) => keys.filter((key) => !config[key]);
 

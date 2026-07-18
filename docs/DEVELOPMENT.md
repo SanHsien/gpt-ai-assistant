@@ -66,7 +66,7 @@ webhook 驗簽／DB 冪等／enqueue／快速 ACK
 | `services/vercel.js` | 觸發 Vercel deploy hook（`deploy` 指令自我重新部署用） |
 | `services/google-calendar.js` | Google Web OAuth、token refresh、Calendar CRUD 與同步 job |
 | `repositories/` | Supabase Postgres data access；所有 owner boundary 與 transaction 集中在此 |
-| `db/migrations/` / `db/rollbacks/` | `0001`–`0018` schema migration 與 latest-only rollback |
+| `db/migrations/` / `db/rollbacks/` | `0001`–`0019` schema migration 與 latest-only rollback |
 | `config/index.js` | 所有環境變數的單一讀取點與預設值 |
 | `constants/` | 常數 | `locales/` | 多語系字串（zh / en / ja） |
 | `middleware/` | Express middleware | `contracts/` | 外部 provider 能力與衝突契約 |
@@ -180,7 +180,7 @@ npm run dev           # nodemon api/index.js，本機起 Express
    npm run db:preflight
    ```
 
-   指令會依序套用目前所有 migration，並在 `schema_migrations` 保存 SHA-256；重跑時 checksum 相符會安全略過。到 Supabase SQL Editor 執行 `select name, applied_at from schema_migrations order by name;`，確認最後一筆是 repo 當前最新 migration（6.0 為 `0018_durable_sources.sql`）。不要只在 SQL Editor 貼 DDL 而漏掉 `schema_migrations` 紀錄。`db:preflight` 也會檢查所有已啟用能力需要的憑證。
+   指令會依序套用目前所有 migration，並在 `schema_migrations` 保存 SHA-256；重跑時 checksum 相符會安全略過。到 Supabase SQL Editor 執行 `select name, applied_at from schema_migrations order by name;`，確認最後一筆是 repo 當前最新 migration（6.0 RC 為 `0019_calendar_sync_query_version.sql`）。不要只在 SQL Editor 貼 DDL 而漏掉 `schema_migrations` 紀錄。`db:preflight` 也會檢查所有已啟用能力需要的憑證。
 3. **設定每分鐘 worker**：在 Vercel Production Sensitive env 建立至少 32 字元的 `REMINDER_CRON_SECRET`；本機暫時設相同值與 `REMINDER_CRON_URL=https://你的穩定網域/cron/reminders`，執行 `npm run db:configure-reminders`。到 Supabase Cron Jobs／History 確認 `gpt-ai-assistant-reminders` 為 active、每分鐘有成功紀錄。
 4. **設定 Google**：在 Web OAuth client 所屬的同一 Google Cloud project 啟用 **Google Calendar API**；要同步任務時必須另外啟用 **Google Tasks API**。OAuth 同意畫面出現 Tasks scope 只代表使用者授權，**不代表 API 已啟用**。設定 External OAuth consent screen，建立 Web application client，Authorized redirect URI 必須逐字等於 `https://你的穩定網域/oauth/google/callback`。將 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_OAUTH_REDIRECT_URI` 設為 Vercel Production Sensitive env。
 5. **最後才開功能旗標**：依需要在 Vercel Production 設 `ENABLE_SCHEDULE=true`、`ENABLE_REMINDERS=true`、`ENABLE_TASKS=true`、`ENABLE_WEATHER=true`、`ENABLE_GOOGLE_CALENDAR=true`、`ENABLE_GOOGLE_TASKS=true`、`ENABLE_GOOGLE_CALENDAR_INBOUND=true`、`ENABLE_GOOGLE_TASKS_INBOUND=true`。每日天氣推播另開 `ENABLE_WEATHER_PUSH=true`。6.0 沒有 `APP_WEBHOOK_QUEUE`；durable queue 永遠啟用。
@@ -324,9 +324,9 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 - 同步上限預設 3 次，內部 backoff 為 5 秒、10 秒；由於 Supabase Cron 每分鐘唤醒，沒有新 webhook 時通常會在約 2 分鐘內完成三次嘗試。前兩次失敗不通知；成功或最終失敗才用 LINE Push 發一則狀態。
 - 最終失敗訊息有「重試同步／暫不處理／刪除行程」。狀態 Push 使用 job UUID 作 `X-Line-Retry-Key` 且寫 `delivered_at` checkpoint，避免 worker crash 造成重複通知。
 - `我的行程` 直接呼叫 Google `events.list`；完成以 `events.get` + `events.patch` 寫入 `[完成]` 與 private metadata；刪除直接呼叫 `events.delete`，再清理本地映射。
-- `ENABLE_GOOGLE_CALENDAR_INBOUND` 以 sync token 輪詢回收 **bot 建立、非週期且有時刻**之行程在 Google 端的修改與刪除；不匯入 Google 端新建行程，也尚未處理週期 round-trip、watch channel 與完整衝突合併。
+- `ENABLE_GOOGLE_CALENDAR_INBOUND` 以 sync token 輪詢回收 **bot 建立、非週期且有時刻**之行程在 Google 端的修改與刪除；`0019` 起使用 `singleEvents=false` 同步 series 本體，不展開無截止日週期，也忽略 recurring instance。這只控制 inbound cursor，LINE 建立週期行程與本地逐次提醒不受影響。不匯入 Google 端新建行程，也尚未處理週期 round-trip、watch channel 與完整衝突合併。
 
-官方依據：[Web server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server)、[Calendar scopes](https://developers.google.com/workspace/calendar/api/auth)、[`events.insert`](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert)、[LINE 外部瀏覽器參數](https://developers.line.biz/en/docs/messaging-api/using-line-url-scheme/#opening-url-in-external-browser)。
+官方依據：[Web server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server)、[Calendar scopes](https://developers.google.com/workspace/calendar/api/auth)、[`events.insert`](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert)、[Calendar incremental sync](https://developers.google.com/workspace/calendar/api/guides/sync)、[`events.list` 的 `singleEvents`](https://developers.google.com/workspace/calendar/api/v3/reference/events/list)、[LINE 外部瀏覽器參數](https://developers.line.biz/en/docs/messaging-api/using-line-url-scheme/#opening-url-in-external-browser)。
 
 ### 其他跑法（非主力）
 
@@ -368,13 +368,13 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 
 ### Phase 0 資料庫基礎（Supabase Postgres，已上線並接線）
 
-依 [`ROADMAP.md`](ROADMAP.md) Phase 0，schema 最新為 `0018`。本維護者 Production 已套用 `0018_durable_sources.sql` 並核對 migration checksum，`bot_sources` RLS 已啟用。Production 使用 transaction pooler、CA 與資料加密 key；queue、行程、提醒、Google Calendar、任務、Google Tasks（outbound＋inbound）、Calendar inbound 與天氣功能旗標均已接線。提醒 URL 與 Bearer secret 存於 Supabase Vault，`gpt-ai-assistant-reminders` Cron 每分鐘執行；每次新增 migration 或改旗標後仍須以 `npm run db:migrate`、`npm run db:preflight`、Redeploy 與真實 worker trace 重驗。
+依 [`ROADMAP.md`](ROADMAP.md) Phase 0，schema 最新為 `0019`。Production 使用 transaction pooler、CA 與資料加密 key；queue、行程、提醒、Google Calendar、任務、Google Tasks（outbound＋inbound）、Calendar inbound 與天氣功能旗標均已接線。`0019` 將既有 Calendar inbound cursor 標成 v1，rc.8 第一次輪詢會清掉該 cursor，下一輪以 `singleEvents=false` 的系列模式重建；這不刪除行程。提醒 URL 與 Bearer secret 存於 Supabase Vault，`gpt-ai-assistant-reminders` Cron 每分鐘執行；每次新增 migration 或改旗標後仍須以 `npm run db:migrate`、`npm run db:preflight`、Redeploy 與真實 worker trace 重驗。
 
 - `services/database.js`：`pg` Pool、`withTransaction`、Supabase CA hostname verification。Supabase URL 有 `DATABASE_URL` 但缺 `DATABASE_SSL_CA` 時 fail closed。
-- `db/migrations/*.sql`：涵蓋 durable queue、行程／確認、Calendar、提醒偏好、任務、天氣、inbound sync 與 bot source；每個 migration 自帶 transaction，`db/rollbacks/` 有 `0001`–`0018` 對應回滾。
+- `db/migrations/*.sql`：涵蓋 durable queue、行程／確認、Calendar、提醒偏好、任務、天氣、inbound sync 與 bot source；每個 migration 自帶 transaction，`db/rollbacks/` 有 `0001`–`0019` 對應回滾。
 - `npm run db:migrate`：依檔名順序套用 migration，`schema_migrations` 記錄 SHA-256 checksum；已套用檔案被修改時拒絕繼續。
 - `npm run db:preflight`：檢查已啟用功能所需 env 與最新 migration；6.0 health/webhook 使用相同檢查。
-- `npm run db:rollback -- 0018_durable_sources.sql --confirm`：只允許回滾最新 migration；只能在尚未部署 6.0 或已回到 5.x 且停止流量時使用。
+- `npm run db:rollback -- 0019_calendar_sync_query_version.sql --confirm`：只允許回滾最新 migration；只能在已回到不要求 `0019` 的 deployment 且停止流量時使用。
 - `repositories/webhook-events.js`：同一 DB transaction 完成 processed-event 登記與 job 入列；任一步失敗皆 rollback，不會永久吞事件。
 - `repositories/jobs.js`：`FOR UPDATE SKIP LOCKED` 領取、lease / retry / dead-letter；每次領取用新 `lease_token` 作 fencing，舊 worker 不能覆寫新 worker 狀態。
 - `services/jobs.js`：`computeBackoffSeconds`（指數退避含上限）與 `runJob(job, handler)`（成功則完成、失敗則重試／dead-letter，handler 丟錯不外拋）。
@@ -384,7 +384,7 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 
 #### 備份／還原與可靠性演練（Phase 0）
 
-**Migration／rollback**：`db/migrations/0001`–`0018` 皆有對應 `db/rollbacks/`。`npm run db:migrate` 依檔名順序套用並記錄 SHA-256 checksum；已套用檔案被改動會拒絕繼續。`npm run db:rollback -- <檔名> --confirm` 只允許回滾最新一筆（見上）。破壞性 migration 一律先寫 rollback 再合併。
+**Migration／rollback**：`db/migrations/0001`–`0019` 皆有對應 `db/rollbacks/`。`npm run db:migrate` 依檔名順序套用並記錄 SHA-256 checksum；已套用檔案被改動會拒絕繼續。`npm run db:rollback -- <檔名> --confirm` 只允許回滾最新一筆（見上）。破壞性 migration 一律先寫 rollback 再合併。
 
 **備份／還原**：
 - 託管 Supabase：Pro 方案有每日自動備份與 PITR（Point-in-Time Recovery），於 Dashboard → Database → Backups 操作；還原前先確認要回復的時間點並停用 `gpt-ai-assistant-reminders` Cron，避免還原期間有 job 寫入。
@@ -403,7 +403,7 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 
 Phase 1 baseline 已接上新增、durable 追問／確認、查詢、修改、衝突警告、完成與刪除；Google 模式會新增與 PATCH 回寫。批次／週期 UX、修改履歷與首次使用主動 timezone 引導屬後續增強。
 
-**下一步**：`6.0.0-rc.7` 完成 durable-only 程式收斂、週期行程當地鐘點校正，以及 Google request／cron drain 的 serverless time budget；Production `0018`、RC health、每分鐘 Cron 與 5.x ↔ RC 回滾往返均已通過。跑完 [`REVIEW.md`](../REVIEW.md) 的剩餘真實 LINE／Google 驗收後，才將同一候選升為正式 `6.0.0`。
+**下一步**：`6.0.0-rc.8` 除既有 durable-only、週期當地鐘點與 serverless time budget 外，也把 Calendar inbound 改為不展開 recurring instances 的系列同步。套用 `0019`、部署並通過連續 Cron 觀察，再跑完 [`REVIEW.md`](../REVIEW.md) 的剩餘真實 LINE 語音驗收後，才將同一候選升為正式 `6.0.0`。
 
 #### 6.0 升級與回滾
 
