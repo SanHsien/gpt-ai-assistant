@@ -78,7 +78,7 @@ npm run dev       # nodemon api/index.js
 ## 文件入口
 
 - [`README.md`](README.md) / [`README.en.md`](README.en.md)：使用者入口、功能與部署（中文為主）。
-- [`REVIEW.md`](REVIEW.md)：最新一次 evidence-based 專案覆核、release gate 與未驗證項（只留最新版）。
+- [`REVIEW.md`](REVIEW.md)：最新一次 evidence-based 專案覆核、release gate 與未驗證項（只留最新版）。**修 bug 必回註（適用所有 AI agent：Claude、Codex 等，維護者 2026-07-19 指示）**：每修復 REVIEW.md 列出的問題，須回到對應項目標註修復 commit hash 與日期；修復過程中額外發現並修掉的 bug 也要補註。REVIEW 維持 latest-only，但修復狀態必須跟上現況。
 - [`docs/ROADMAP.md`](docs/ROADMAP.md)：產品階段、Phase 狀態、模型／API、參考架構與授權邊界。
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)：架構、本機指令、環境變數、部署（Vercel 優先）。
 - [`docs/DECISIONS.md`](docs/DECISIONS.md)：決策紀錄。
