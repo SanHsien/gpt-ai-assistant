@@ -186,7 +186,7 @@ adapters
 
 > **範疇（2026-07-17）：** 語音建行程實作；**圖片（海報／票券／截圖）建行程決定不實作**——vision 擷取的信心／欄位缺漏／多活動批次確認複雜度高、可靠性受圖片品質影響大，個人使用手打或語音已足夠。圖片能力維持既有「看圖聊天」，不接行程擷取。
 
-- [x] 語音沿用現有 transcription，送入與文字**完全相同**的 event-draft 流程：LINE 音訊訊息經 `transcribeAudio`（Whisper／`gpt-4o-mini-transcribe`）轉文字後即成 `trimmedText`，`app/app.js` 已收 `isAudio`、schedule handler 無 `isText` 閘門，指令（`記行程 …`）與隱式日期語句皆可觸發，走同一 parse→durable 追問→確認→CRUD→Google 同步→提醒。rc.9 接收桌面音訊附件；rc.10 再依 Content API header／magic bytes 保留 LINE 實際送出的 MP3／WAV／M4A／WebM 格式，同時支援 `audio` 與白名單 `file` webhook。語音確認卡額外回顯「🎤 我聽到：…」原文，讓使用者分辨聽錯與解析錯（`__TEXT_SCHEDULE_HEARD`）。
+- [x] 語音沿用現有 transcription，送入與文字**完全相同**的 event-draft 流程：LINE 音訊訊息經 `transcribeAudio`（Whisper／`gpt-4o-mini-transcribe`）轉文字後即成 `trimmedText`，`app/app.js` 已收 `isAudio`、schedule handler 無 `isText` 閘門，指令（`記行程 …`）與隱式日期語句皆可觸發，走同一 parse→durable 追問→確認→CRUD→Google 同步→提醒。rc.9 接收桌面音訊附件；rc.10 依 Content API header／magic bytes 保留 LINE 實際送出的 MP3／WAV／M4A／WebM 格式；rc.11 容忍句首「記行程」被辨為常見同音字或前置「請幫我」，同時支援 `audio` 與白名單 `file` webhook。語音確認卡仍回顯「🎤 我聽到：…」原始文字，讓使用者分辨聽錯與解析錯（`__TEXT_SCHEDULE_HEARD`）。
 - [x] 音訊生命週期：音訊 buffer 只在 `transcribeAudio` 記憶體內存在、轉錄後即釋放，不落地 DB／磁碟／log；轉錄文字比照一般對話受 `APP_MAX_PROMPT_AGE` 管控。
 - [—] ~~圖片沿用 vision，擷取海報／票券／截圖的名稱／日期／時間／地點／時區。~~ **決定不實作（2026-07-17）**。
 - [—] ~~OCR／vision 結果標記信心與來源欄位，不確定欄位追問。~~ **決定不實作**。
@@ -287,7 +287,7 @@ adapters
 
 語意化版本的 major 代表使用者或部署者必須處理的不相容變更，不代表 Phase 編號。只要新增功能仍與既有指令、環境變數與資料相容，就留在 `5.x`；不為了「路線圖走完」硬切 `6.0.0`。
 
-`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.10` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性、Express／Jest／ESLint 維護基線、Google Tasks 永久設定錯誤恢復、週期行程當地鐘點校正、Google request／cron drain time budget、Calendar inbound 非展開系列同步，以及 LINE 桌面音訊檔入口與格式判斷；既有 Production 升級與回滾往返已通過，現進入集中驗收：
+`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.11` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性、Express／Jest／ESLint 維護基線、Google Tasks 永久設定錯誤恢復、週期行程當地鐘點校正、Google request／cron drain time budget、Calendar inbound 非展開系列同步，以及 LINE 桌面音訊檔入口、格式判斷與同音指令容錯；既有 Production 升級與回滾往返已通過，現進入集中驗收：
 
 - [x] 提醒排程只有一個實作入口；到點、lead、週期與 inbound 修改共用相同 idempotency key 規則。
 - [x] 移除可由 durable jobs 推導的 `event_reminders` 第二份狀態（`0017`）。
@@ -338,6 +338,7 @@ adapters
 - `6.0.0-rc.8`：正式 logs 證明 rc.7 仍會 timeout；根因為 `singleEvents=true` 展開無截止日週期。Calendar inbound 改同步 recurring series、忽略 recurrence instances，`0019` 版本化重建既有 sync cursor。
 - `6.0.0-rc.9`：因 LINE Windows／Mac 不支援原生語音錄製，加入支援音訊檔的 `file` webhook 路由與 25 MiB 預設上限，讓桌面版可完成相同轉錄／行程流程。
 - `6.0.0-rc.10`：真實 Windows 驗收發現 LINE 會把桌面 WAV／MP3 附件轉成 `audio` webhook；改用 Content API `Content-Type`／magic bytes 決定 OpenAI 檔名，避免錯誤轉錄。
+- `6.0.0-rc.11`：rc.10 實機再驗顯示音訊格式已正確，但「記行程」被辨為「寄行程」時仍落入一般聊天；新增僅限語音句首的同音字／禮貌前綴正規化，原始轉錄照常回顯。
 - 後續 `5.x`：只做向後相容的功能、可靠性與文件改善；版本可持續增加，不預設一定要到哪個 minor。
 - `6.0.0`：RC 已在既有 Production 完成 migration、Cron 與回滾演練；集中 LINE／Supabase／Google 驗收通過後發布。
 
