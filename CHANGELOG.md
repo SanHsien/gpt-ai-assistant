@@ -1,5 +1,11 @@
 # Changelog
 
+## [6.0.1] - 2026-07-22
+
+- 修正刪除行程時只移除 `events`、未同步取消待執行提醒的問題；LINE 刪除與 Google Calendar inbound 刪除現在都以同一個原子 SQL 同步終止 pending reminder jobs。
+- 補強 AI 操作 LINE PC 的正式驗收 runbook：每輪先建立驗收清冊，清理時回溯整個 release cycle、刪除本機暫存音訊並檢查孤兒提醒，不能只看最後一批成功案例。
+- 清除本次與先前集中驗收可精準界定的 Supabase 測試資料；週期 inbound 系統巡檢紀錄與平台不可控 logs 保留為運維證據。
+
 ## [6.0.0] - 2026-07-22
 
 - 正式完成 Supabase durable-only runtime、Google Calendar／Tasks provider contract、功能感知 LINE 快捷入口、完整 `指令` 清單、Node 24／Express 5／Jest 30／ESLint 10 維護基線，以及 migration、Cron、回滾與部署前置檢查。
