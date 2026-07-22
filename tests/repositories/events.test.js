@@ -258,12 +258,28 @@ test('listEventConflicts finds overlapping active events and excludes the edited
   ]);
 });
 
-test('deleteEvent returns whether a row was removed', async () => {
+test('deleteEvent atomically removes an owned event and cancels its pending reminders', async () => {
   const { deleteEvent } = await load();
   query.mockResolvedValueOnce({ rowCount: 1 });
   expect(await deleteEvent('owner1', 'ev1')).toBe(true);
+  const [sql, params] = query.mock.calls[0];
+  expect(sql).toMatch(/delete from events/i);
+  expect(sql).toMatch(/update jobs/i);
+  expect(sql).toMatch(/line-reminder:/i);
+  expect(params).toEqual(['owner1', 'ev1', null]);
+
   query.mockResolvedValueOnce({ rowCount: 0 });
   expect(await deleteEvent('owner1', 'missing')).toBe(false);
+});
+
+test('deleteEventByProviderId uses the same reminder-safe deletion path', async () => {
+  const { deleteEventByProviderId } = await load();
+  query.mockResolvedValue({ rowCount: 1 });
+  await expect(deleteEventByProviderId('owner1', 'google-event-1')).resolves.toBe(true);
+  const [sql, params] = query.mock.calls[0];
+  expect(sql).toMatch(/provider_event_id = \$3/i);
+  expect(sql).toMatch(/update jobs/i);
+  expect(params).toEqual(['owner1', null, 'google-event-1']);
 });
 
 test('completeEvent atomically marks the event and cancels a pending reminder job', async () => {

@@ -212,14 +212,6 @@ export const markEventSyncError = async (ownerId, id, errorCode) => {
   return result.rowCount > 0;
 };
 
-export const deleteEventByProviderId = async (ownerId, providerEventId) => {
-  const result = await query(
-    'DELETE FROM events WHERE owner_id = $1 AND provider_event_id = $2',
-    [ownerId, providerEventId],
-  );
-  return result.rowCount > 0;
-};
-
 const toMs = (value) => (value == null ? null : new Date(value).getTime());
 
 // 反向 mapping 後的 draft 與本地事件列欄位是否一致（用來偵測「其實沒變」的自身 echo）。
@@ -381,13 +373,36 @@ export const updateEvent = async (
  * @param {string} id
  * @returns {Promise<boolean>} 是否有刪到（找不到或非本人回 false）
  */
-export const deleteEvent = async (ownerId, id, executor = query) => {
+const deleteEventScoped = async (ownerId, id, providerEventId, executor = query) => {
   const result = await executor(
-    'DELETE FROM events WHERE id = $1 AND owner_id = $2',
-    [id, ownerId],
+    `WITH deleted AS (
+       DELETE FROM events
+       WHERE owner_id = $1
+         AND (($2::uuid IS NOT NULL AND id = $2)
+           OR ($3::text IS NOT NULL AND provider_event_id = $3))
+       RETURNING id
+     ), cancelled_reminders AS (
+       UPDATE jobs
+       SET status = 'done', lease_until = null, lease_token = null, updated_at = now()
+       WHERE status = 'pending'
+         AND EXISTS (
+           SELECT 1 FROM deleted
+           WHERE jobs.idempotency_key LIKE 'line-reminder:' || deleted.id::text || ':%'
+         )
+     )
+     SELECT id FROM deleted`,
+    [ownerId, id, providerEventId],
   );
   return result.rowCount > 0;
 };
+
+export const deleteEvent = (ownerId, id, executor = query) => (
+  deleteEventScoped(ownerId, id, null, executor)
+);
+
+export const deleteEventByProviderId = (ownerId, providerEventId, executor = query) => (
+  deleteEventScoped(ownerId, null, providerEventId, executor)
+);
 
 export default {
   applyInboundEventUpdate,
