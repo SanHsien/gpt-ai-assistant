@@ -404,7 +404,7 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 
 Phase 1 baseline 已接上新增、durable 追問／確認、查詢、修改、衝突警告、完成與刪除；Google 模式會新增與 PATCH 回寫。批次／週期 UX、修改履歷與首次使用主動 timezone 引導屬後續增強。
 
-**下一步**：`6.0.0-rc.11` 已完成 Calendar inbound v2／Cron 實機觀察、LINE 桌面音訊格式判斷與語音同音指令容錯。跑完 [`REVIEW.md`](../REVIEW.md) 的音訊檔→轉錄→確認→Google→清理驗收後，才將同一候選升為正式 `6.0.0`。
+**正式狀態**：`6.0.0` 已完成 Calendar inbound v2／Cron 實機觀察、LINE 桌面音訊格式判斷與語音同音指令容錯，並通過 [`REVIEW.md`](../REVIEW.md) 的音訊檔→轉錄→確認→Google 單筆建立驗收。後續修正仍須依本節流程在 RC／staging 驗證後發布。
 
 #### 6.0 升級與回滾
 

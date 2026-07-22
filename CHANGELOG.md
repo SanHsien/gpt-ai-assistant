@@ -1,5 +1,10 @@
 # Changelog
 
+## [6.0.0] - 2026-07-22
+
+- 正式完成 Supabase durable-only runtime、Google Calendar／Tasks provider contract、功能感知 LINE 快捷入口、完整 `指令` 清單、Node 24／Express 5／Jest 30／ESLint 10 維護基線，以及 migration、Cron、回滾與部署前置檢查。
+- 集中真實驗收已涵蓋 LINE／Supabase／Google 的行程、Tasks、提醒、週期、inbound、天氣、搜尋與桌面音訊。最後一項桌面音訊由 rc.11 通過：轉錄回顯與行程確認正確，LINE 回覆同步成功，Google Calendar 只建立一筆。
+
 ## [6.0.0-rc.11] - 2026-07-22
 
 - rc.10 真實 LINE Windows 驗收仍落入一般聊天；測試音訊由本機 Whisper 辨成「寄行程…」，確認音訊格式已正確但句首同音字讓精確指令比對失敗。

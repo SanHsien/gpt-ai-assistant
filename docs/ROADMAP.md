@@ -283,11 +283,11 @@ adapters
 - [—] ~~對頻道能力差異做 feature matrix。~~
 - [—] ~~iMessage 僅在有可合法維護的官方整合方式時研究。~~
 
-## 架構收斂與 `6.0.0` 候選
+## 架構收斂與 `6.0.0`
 
 語意化版本的 major 代表使用者或部署者必須處理的不相容變更，不代表 Phase 編號。只要新增功能仍與既有指令、環境變數與資料相容，就留在 `5.x`；不為了「路線圖走完」硬切 `6.0.0`。
 
-`5.13.0` 先完成不破壞相容性的收斂；`6.0.0-rc.11` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性、Express／Jest／ESLint 維護基線、Google Tasks 永久設定錯誤恢復、週期行程當地鐘點校正、Google request／cron drain time budget、Calendar inbound 非展開系列同步，以及 LINE 桌面音訊檔入口、格式判斷與同音指令容錯；既有 Production 升級與回滾往返已通過，現進入集中驗收：
+`5.13.0` 先完成不破壞相容性的收斂；`6.0.0` 已落地 breaking runtime 契約、feature-aware LINE 快捷入口、Node 24 容器可靠性、Express／Jest／ESLint 維護基線、Google Tasks 永久設定錯誤恢復、週期行程當地鐘點校正、Google request／cron drain time budget、Calendar inbound 非展開系列同步，以及 LINE 桌面音訊檔入口、格式判斷與同音指令容錯；Production 升級／回滾與集中實機驗收均已通過：
 
 - [x] 提醒排程只有一個實作入口；到點、lead、週期與 inbound 修改共用相同 idempotency key 規則。
 - [x] 移除可由 durable jobs 推導的 `event_reminders` 第二份狀態（`0017`）。
@@ -297,11 +297,11 @@ adapters
 - [x] 將 Google Calendar／Tasks 的 outbound、inbound、權限與衝突政策收斂為共用可測 provider contract；全天 inbound、recurrence exception、Google-origin 建立與 Tasks due 回收仍維持明確不支援。
 - [x] 在既有 5.x Production 完成 migration、health、Cron 與 5.x ↔ RC 回滾往返；新安裝流程由 migration runner、preflight 與部署手冊固定。
 - [x] 全域 Quick Reply 收斂為最多 13 個常用且依 feature flags 顯示的入口；`指令` 依已啟用功能輸出分組完整清單與範例；文件提供選用 3×2 圖文選單，但不把 rich menu 管理變成 runtime 前置條件。
-- [ ] 在真實 LINE + Supabase + Google 完成 5.x 累積驗收後，才發布 `6.0.0`。
+- [x] 在真實 LINE + Supabase + Google 完成 5.x 累積驗收後發布 `6.0.0`；最後的桌面音訊轉錄→確認→Google 單筆建立於 2026-07-22 通過。
 
 非中文在 6.0 不列為 release gate：`zh_TW` 是正式支援基準，`en`／`ja` 仍是實驗性介面。RC.3 已移除 locale TODO 並讓 Google OAuth HTML 跟隨語系；若未來要升為正式語系，仍須補齊天氣格式、該語系日期／意圖 parser fixture，並完成 LINE + OpenAI + Google + 天氣 E2E。
 
-因此 `6.0.0` 的程式入口、Production migration、Cron 與回滾演練已成立；目前只剩集中真實 LINE + Google 驗收。候選版不冒充正式 E2E 已通過。
+因此 `6.0.0` 的程式入口、Production migration、Cron、回滾演練與集中真實 LINE + Google 驗收均已成立。
 
 ## 跨階段品質門檻
 
@@ -339,8 +339,8 @@ adapters
 - `6.0.0-rc.9`：因 LINE Windows／Mac 不支援原生語音錄製，加入支援音訊檔的 `file` webhook 路由與 25 MiB 預設上限，讓桌面版可完成相同轉錄／行程流程。
 - `6.0.0-rc.10`：真實 Windows 驗收發現 LINE 會把桌面 WAV／MP3 附件轉成 `audio` webhook；改用 Content API `Content-Type`／magic bytes 決定 OpenAI 檔名，避免錯誤轉錄。
 - `6.0.0-rc.11`：rc.10 實機再驗顯示音訊格式已正確，但「記行程」被辨為「寄行程」時仍落入一般聊天；新增僅限語音句首的同音字／禮貌前綴正規化，原始轉錄照常回顯。
-- 後續 `5.x`：只做向後相容的功能、可靠性與文件改善；版本可持續增加，不預設一定要到哪個 minor。
-- `6.0.0`：RC 已在既有 Production 完成 migration、Cron 與回滾演練；集中 LINE／Supabase／Google 驗收通過後發布。
+- 後續 `6.x`：只做向後相容的功能、可靠性與文件改善；不相容契約變更另升 major。
+- `6.0.0`：RC 已在既有 Production 完成 migration、Cron、回滾演練與集中 LINE／Supabase／Google 驗收，於 2026-07-22 發布。
 
 ### 6.x 相依架構遷移
 

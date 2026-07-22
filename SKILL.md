@@ -1,6 +1,6 @@
 ---
 name: gpt-ai-assistant
-description: 維護 SanHsien/gpt-ai-assistant。本專案是 LINE × OpenAI 個人助理：支援文字、生圖、影像理解、SerpAPI 搜尋、Supabase durable queue、Google Calendar／Tasks 雙向同步、行程、任務、提醒與天氣；目前為 6.0 release candidate。serverless（Vercel 優先）部署、使用者自架自備金鑰，源自 memochou1993/gpt-ai-assistant（MIT）並獨立維護。
+description: 維護 SanHsien/gpt-ai-assistant。本專案是 LINE × OpenAI 個人助理：支援文字、生圖、影像理解、SerpAPI 搜尋、Supabase durable queue、Google Calendar／Tasks 雙向同步、行程、任務、提醒與天氣；目前穩定版為 6.0.0。serverless（Vercel 優先）部署、使用者自架自備金鑰，源自 memochou1993/gpt-ai-assistant（MIT）並獨立維護。
 ---
 
 # gpt-ai-assistant

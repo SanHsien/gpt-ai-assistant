@@ -103,9 +103,9 @@ This project keeps **OpenAI + LINE, self-hosting, and user-supplied API keys** w
 - **Events and reminders**: one sentence becomes a JSON-Schema-validated draft; explicit dates and local wall-clock times are resolved deterministically, while incomplete details continue through a durable structured clarification. Recurring phrases such as `Every day at 22:40 routine check` enter the schedule flow directly and show the recurrence rule before confirmation. Create and edit use token-bound confirmation, row locking, optimistic versions, and overlap warnings. `Connect Google Calendar` starts OAuth without invoking general chat; create and bot-originated updates sync through idempotent durable jobs, while list, complete, and delete call Google Calendar.
 - **Durable checkpoints**: "AI finished" and "LINE delivered" are separate checkpoints, giving at-most-once AI work with retryable delivery. Delivery retries do not rerun the paid AI phase or duplicate a successful LINE reply.
 
-### 6.0 release candidate
+### 6.0 stable release
 
-- **`6.0.0-rc.11`** retains rc.8 Calendar inbound behavior, rc.9 desktop audio input, and rc.10 content-type detection, then normalizes common Chinese homophones at the start of spoken schedule commands while preserving the raw transcript for confirmation. Final `6.0.0` still requires the last LINE/Google acceptance check.
+- **`6.0.0`** completes the durable-only runtime, Google Calendar/Tasks contract, reminders, recurrence, search, weather, and desktop audio path, with centralized LINE/Supabase/Google acceptance complete. Spoken Chinese schedule-prefix homophones are normalized while the raw transcript remains visible for confirmation.
 - **Google contract limits**: Calendar outbound CRUD and mapped timed non-recurring inbound plus mapped Tasks inbound/outbound are supported. Calendar all-day inbound, recurrence exceptions, Google-origin creation, and Tasks due-date inbound remain explicitly unsupported.
 - **Further model/API upgrades** — first pass done; new models must be re-verified against official documentation before use, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 - **Adopt selected fermi architecture lessons** — rebuild reliability, persistence, observability in phases; do not merge fermi source code directly.

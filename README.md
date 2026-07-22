@@ -137,9 +137,9 @@ npm test                # jest
 - **Run trace（Phase 0）**：每次 AI 執行記錄能力／模型／token／估算成本／耗時／狀態，不含對話內容或憑證。
 - **Durable checkpoint**：把「AI 已完成」與「LINE 已送達」拆成兩個 checkpoint，語意是 **AI 至多執行一次、送達可重試多次**——失敗重試只會重送，不會重複付費，也不會產生重複訊息。
 
-### 6.0 release candidate
+### 6.0 正式版
 
-- **`6.0.0-rc.11`**：延續 rc.8 的 Calendar inbound 修正、rc.9 桌面音訊入口與 rc.10 實際音訊格式判斷；真實 LINE Windows 驗收後，再補語音句首「寄／紀／計／既行程」等同音辨識容錯，原始轉錄仍會回顯供核對。正式 `6.0.0` 仍須完成最後 LINE／Google 驗收，見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+- **`6.0.0`**：Supabase durable-only runtime、Google Calendar／Tasks 雙向契約、提醒／週期／搜尋／天氣與桌面音訊入口已完成集中 LINE／Supabase／Google 驗收。語音句首「寄／紀／計／既行程」等同音辨識會安全正規化，原始轉錄仍會回顯供核對。完整證據見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **Google contract 邊界**：Calendar outbound CRUD 與 mapped timed non-recurring inbound、Tasks mapped inbound/outbound 已納入契約；Calendar 全天 inbound、recurrence exception、Google-origin 建立，以及 Tasks due 回收仍明確不支援。
 - **模型與 API 進一步升級**——首輪已完成；新模型等待實作前對官方文件重核，見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **吸收 fermi 架構經驗**——分階段重做可靠性、持久化、觀測性；不直接合併 fermi 原始碼。
