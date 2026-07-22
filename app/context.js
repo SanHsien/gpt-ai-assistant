@@ -20,6 +20,11 @@ import {
 import { Bot, Source } from './models/index.js';
 import botSourceRepository from '../repositories/bot-sources.js';
 
+const normalizeAudioCommand = (text) => text.replace(
+  /^(?:(?:請(?:幫我)?|幫我)\s*)?[記寄紀計既]\s*行程/u,
+  '記行程',
+);
+
 class Context {
   /**
    * @type {import('./models/index.js').Event}
@@ -86,7 +91,9 @@ class Context {
       return addMark(text);
     }
     if (this.event.isAudio) {
-      const text = this.transcription.replace(config.BOT_NAME, '').trim();
+      const text = normalizeAudioCommand(
+        this.transcription.replace(config.BOT_NAME, '').trim(),
+      );
       return addMark(text);
     }
     if (this.event.isImage) {

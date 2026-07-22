@@ -9,10 +9,11 @@ const load = async ({
   maxBytes = 25 * 1024 * 1024,
   buffer = Buffer.from('audio'),
   extension = '.m4a',
+  transcription = '記行程 明天下午三點看診',
 } = {}) => {
   jest.resetModules();
   fetchAudio = jest.fn().mockResolvedValue({ buffer, extension });
-  generateTranscription = jest.fn().mockResolvedValue({ text: '記行程 明天下午三點看診' });
+  generateTranscription = jest.fn().mockResolvedValue({ text: transcription });
   jest.doMock('../../config/index.js', () => ({
     __esModule: true,
     default: {
@@ -77,6 +78,25 @@ test('LINE audio message uses the downloaded content type extension', async () =
     file: 'audio-mp3.mp3',
     buffer: Buffer.from('audio'),
   });
+});
+
+test.each([
+  '寄行程 明天下午三點語音驗收',
+  '紀行程 明天下午三點語音驗收',
+  '請幫我記行程 明天下午三點語音驗收',
+])('normalizes a spoken schedule prefix but preserves the raw transcript: %s', async (transcription) => {
+  const { Context, Event } = await load({ transcription });
+  const event = new Event({
+    type: 'message',
+    source: { type: 'user', userId: 'U1' },
+    message: { type: 'audio', id: 'audio-command' },
+  });
+  const context = new Context(event);
+
+  await context.transcribeAudio();
+
+  expect(context.transcription).toBe(transcription);
+  expect(context.trimmedText).toBe('記行程 明天下午三點語音驗收');
 });
 
 test('downloaded audio content is rejected when it exceeds the configured limit', async () => {
