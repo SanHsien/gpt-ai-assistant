@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- 比照 `yt_fetch` 新增依賴維護自動化：Dependabot 每週檢查 npm 與 GitHub Actions；每月 freshness workflow 盤點所有直接 npm 依賴並執行 `npm audit`，必要時建立／更新維護 issue，恢復最新且無已知漏洞後自動關閉。
+- Dependabot 會同步推進 `package.json` 宣告版本，並將開發依賴的 major 更新與 minor／patch 分組，避免高風險更新混入一般維護 PR。
+
 ## [6.0.1] - 2026-07-22
 
 - 修正刪除行程時只移除 `events`、未同步取消待執行提醒的問題；LINE 刪除與 Google Calendar inbound 刪除現在都以同一個原子 SQL 同步終止 pending reminder jobs。

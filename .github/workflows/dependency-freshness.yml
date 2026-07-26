@@ -1,0 +1,61 @@
+name: 依賴新鮮度檢查
+
+on:
+  schedule:
+    # 每月 1 日 10:17（Asia/Taipei）盤點所有直接 npm 依賴。
+    - cron: "17 2 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 檢出程式碼
+        uses: actions/checkout@v7
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: 安裝鎖定依賴
+        run: npm ci
+
+      - name: 檢查依賴新鮮度
+        id: deps
+        run: |
+          node tools/check-dependency-freshness.js \
+            --github-output \
+            --output dependency-freshness-report.md
+          cat dependency-freshness-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 建立或更新維護提醒 issue
+        if: steps.deps.outputs.needs_attention == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          issue="$(gh issue list --state open --search '依賴新鮮度檢查 in:title' --json number --jq '.[0].number // empty')"
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body-file dependency-freshness-report.md
+          else
+            gh issue create \
+              --title "依賴新鮮度檢查：需要維護" \
+              --body-file dependency-freshness-report.md
+          fi
+
+      - name: 關閉已解決的維護提醒 issue
+        if: steps.deps.outputs.needs_attention == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          issue="$(gh issue list --state open --search '依賴新鮮度檢查 in:title' --json number --jq '.[0].number // empty')"
+          if [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "本次排程檢查已確認所有直接 npm 依賴皆為最新，且 npm audit 無已知漏洞，關閉提醒。"
+          fi

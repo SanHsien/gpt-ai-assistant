@@ -80,6 +80,7 @@ webhook 驗簽／DB 冪等／enqueue／快速 ACK
 npm ci
 npx eslint .          # ESLint flat config（見 eslint.config.js；無 npm script）
 npm test              # jest（見 tests/）
+npm run check:dependencies  # 盤點直接依賴版本並執行 npm audit
 npm run dev           # nodemon api/index.js，本機起 Express
 ```
 
@@ -437,6 +438,8 @@ LINE 桌面語音限制依據：[LINE Help Center](https://help.line.me/line/des
 `npm test`（jest，見 `tests/`）。目前覆蓋各指令、簽章驗證、feature flags、webhook 去重、queue/checkpoint、行程、任務、提醒、Calendar、天氣、Blob/圖片、SSRF 與 DB repositories。改行為時必須補對應測試。
 
 CI：`.github/workflows/ci.yml` 在每次 push / PR 對 `main` 跑 `npm ci` → `npx eslint .` → `npm test`（Node 24）。README 的 CI 徽章反映此 workflow 狀態；CodeQL 徽章反映 `.github/workflows/codeql.yml`。
+
+依賴維護：Dependabot 每週一檢查 npm 與 GitHub Actions；`.github/workflows/dependency-freshness.yml` 每月 1 日另跑一次所有直接依賴的新鮮度與 `npm audit`。發現落後、漏洞或查詢失敗時會建立／更新同一個維護 issue，全部恢復正常後自動關閉。可用 `npm run check:dependencies` 在本機產生同格式報告。
 
 ## Legacy 與上游邊界
 

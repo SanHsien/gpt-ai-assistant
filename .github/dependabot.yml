@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # npm 相依：每週檢查，分開分組 prod / dev 的 PR
+  # npm 執行期與開發依賴；increase 會同步推進 package.json 的宣告版本。
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -8,16 +8,22 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Asia/Taipei"
+    versioning-strategy: "increase"
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+      - "javascript"
     groups:
       production-dependencies:
         dependency-type: "production"
-      development-dependencies:
+      development-minor-and-patch:
         dependency-type: "development"
+        update-types: ["minor", "patch"]
+      development-major:
+        dependency-type: "development"
+        update-types: ["major"]
 
-  # GitHub Actions（含 CodeQL workflow 用到的 action）自動更新
+  # checkout、setup-node 與 CodeQL 等 GitHub Actions。
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -25,6 +31,7 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Asia/Taipei"
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "github-actions"
