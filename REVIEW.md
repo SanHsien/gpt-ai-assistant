@@ -27,6 +27,7 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 - **［已修復］依賴 PR 與 issue 缺少處理閉環**：`8149964`（2026-07-26）新增受信任 base 政策分類、head-SHA check、必要 CI gate、核准／squash merge、固定 freshness tracker reopen／close 與合併後重驗；GitHub Actions 已允許 workflow review，`main` 已設 strict required checks、1 人核准、stale dismissal、conversation resolution、linear history及禁止 force push／delete。Dependabot PR #7、#8 經 guarded merge 自動核准合併，執行期 PR #6 經人工檢查 release notes、差異與完整 checks 後合併。
 - **［已修復］並發事件可能遺失 auto-merge queue 項目**：GitHub concurrency 只保留一筆 running 與一筆 pending，原設計可能取消另一 PR 的成功事件；`c455265`（2026-07-26）改為每次成功事件重新掃描整個 auto-merge label queue，並維持目前 head 的政策 check、required checks 與 merge-head 比對。
 - **［已修復］開發工具 major 自動合併過寬與 npm audit 19 high**：Babel 8 通過測試但與 Jest 30 內部 Babel 7 peer contract 衝突；`047a0d3`（2026-07-26）回復 Babel 7.29.7、將 npm major 一律改為人工審查，並以套件範圍 overrides 升級 Jest 的 `glob`／`test-exclude` 漏洞鏈；`86ad207`（2026-07-26）同步讓 Dependabot 暫緩不相容的 Babel major，並由 freshness issue 持續追蹤相容時機。`npm ci` 無 peer conflict，`npm audit --audit-level=high` 為 0，完整 lint、module-load 與 77 suites／537 tests 通過。
+- **［已修復］人工審查 PR 與 tracker 狀態延遲**：最終 `gpt-5.6-sol` high 跨 repo 覆核指出，人工審查型 Dependabot PR 若只開啟或未合併直接關閉，原本要等月排程才更新 freshness tracker；`735fcb6`（2026-07-26）讓 opened／reopened／synchronize／ready-for-review／closed 都立即 dispatch freshness，closed 只同步 tracker、不再分類或修改已關閉 PR，且全程不 checkout／執行 PR 程式碼。
 - 本機以 Express 5 實際啟動 HTTP server，`GET /health/live` 回 `200 {"status":"OK"}`。GitHub CI 另成功建置 production image，啟動時不傳 `APP_PORT`，驗證預設 `3000`、HTTP liveness 與 Docker `healthy` 狀態。
 
 ## 交叉覆核（Claude，2026-07-18，`6.0.0-rc.3`）
