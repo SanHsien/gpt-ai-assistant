@@ -13,6 +13,12 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    ignore:
+      # Jest 30 的 Babel transform 鏈仍要求 Babel 7；由 freshness issue 追蹤相容時機。
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@babel/preset-env"
+        update-types: ["version-update:semver-major"]
     groups:
       production-dependencies:
         dependency-type: "production"

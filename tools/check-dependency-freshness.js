@@ -78,7 +78,7 @@ export const renderMarkdown = (rows, { audit = EMPTY_AUDIT, checkError = '' } = 
     '## 處理流程',
     '',
     '1. 檢查同一批 Dependabot PR 的風險分類、變更範圍與必要 checks。',
-    '2. 低風險開發工具與 GitHub Actions 更新由 guarded merge workflow 序列核准；執行期依賴與 Actions major 保留人工審查。',
+    '2. 低風險開發工具與 GitHub Actions minor／patch 由 guarded merge workflow 序列核准；執行期依賴與所有 major 保留人工審查。',
     '3. 每次自動或人工合併後重新執行本檢查；只有直接依賴皆為最新、`npm audit` 為 0 且沒有 open Dependabot PR 才關閉本 issue。',
   );
   return `${lines.join('\n')}\n`;

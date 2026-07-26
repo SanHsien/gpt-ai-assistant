@@ -9,6 +9,7 @@ const read = (path) => readFileSync(resolve(process.cwd(), path), 'utf8');
 test('Dependabot review and merge workflows preserve strict gates', () => {
   const review = read('.github/workflows/dependabot-review.yml');
   const merge = read('.github/workflows/dependabot-merge.yml');
+  const dependabot = read('.github/dependabot.yml');
 
   expect(review).toContain('pull_request_target:');
   expect(review).toContain('github.event.pull_request.base.sha');
@@ -29,6 +30,8 @@ test('Dependabot review and merge workflows preserve strict gates', () => {
   expect(merge).toContain('--match-head-commit');
   expect(merge).toContain('"test" "docker-smoke" "Analyze (JavaScript/TypeScript)"');
   expect(merge).toContain('gh workflow run dependency-freshness.yml');
+  expect(dependabot).toContain('dependency-name: "@babel/core"');
+  expect(dependabot).toContain('update-types: ["version-update:semver-major"]');
 });
 
 test('freshness workflow owns and resolves one maintenance issue', () => {
