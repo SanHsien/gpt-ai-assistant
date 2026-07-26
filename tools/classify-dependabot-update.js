@@ -57,6 +57,9 @@ export const classifyUpdate = ({
     if (dependencyType !== 'direct:development') {
       return manual('不是可自動處理的直接開發依賴。');
     }
+    if (!SAFE_ACTION_UPDATE_TYPES.has(updateType)) {
+      return manual('npm 開發工具 major 更新可能改變執行或 peer dependency 契約，保留人工審查。');
+    }
 
     const names = dependencyNames.filter(Boolean).map((name) => name.trim().toLowerCase());
     if (names.length === 0) {
@@ -68,7 +71,7 @@ export const classifyUpdate = ({
     return {
       decision: 'auto_merge',
       label: AUTO_MERGE_LABEL,
-      reason: '開發工具由 npm ci、ESLint、module-load、完整 Jest 與 Docker smoke 直接驗證。',
+      reason: '開發工具 patch 或 minor 更新由 npm ci、ESLint、module-load、完整 Jest 與 Docker smoke 直接驗證。',
     };
   }
 

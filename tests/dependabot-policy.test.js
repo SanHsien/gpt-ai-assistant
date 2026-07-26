@@ -3,14 +3,26 @@ import {
 } from '@jest/globals';
 import { classifyUpdate } from '../tools/classify-dependabot-update.js';
 
-test('auto-merges CI-exercised development updates', () => {
+test('auto-merges CI-exercised development patch or minor updates', () => {
   expect(classifyUpdate({
+    ecosystem: 'npm_and_yarn',
+    dependencyType: 'direct:development',
+    updateType: 'version-update:semver-minor',
+    changedFiles: ['package.json', 'package-lock.json'],
+    dependencyNames: ['@babel/core', '@babel/preset-env'],
+  }).decision).toBe('auto_merge');
+});
+
+test('requires manual review for npm development major updates', () => {
+  const result = classifyUpdate({
     ecosystem: 'npm_and_yarn',
     dependencyType: 'direct:development',
     updateType: 'version-update:semver-major',
     changedFiles: ['package.json', 'package-lock.json'],
     dependencyNames: ['@babel/core', '@babel/preset-env'],
-  }).decision).toBe('auto_merge');
+  });
+  expect(result.decision).toBe('manual');
+  expect(result.reason).toContain('major');
 });
 
 test('requires manual review for production dependencies', () => {

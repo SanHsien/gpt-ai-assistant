@@ -43,8 +43,8 @@
     "rrule": "2.8.1"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.1",
-    "@babel/preset-env": "^8.0.2",
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
     "@eslint/js": "10.0.1",
     "@jest/globals": "30.4.1",
     "babel-jest": "30.4.1",
@@ -52,5 +52,19 @@
     "globals": "17.7.0",
     "jest": "30.4.2",
     "nodemon": "^3.1.14"
+  },
+  "overrides": {
+    "@jest/reporters": {
+      "glob": "13.0.6"
+    },
+    "babel-plugin-istanbul": {
+      "test-exclude": "8.0.0"
+    },
+    "jest-config": {
+      "glob": "13.0.6"
+    },
+    "jest-runtime": {
+      "glob": "13.0.6"
+    }
   }
 }
