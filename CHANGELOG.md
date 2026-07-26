@@ -6,6 +6,7 @@
 - Dependabot 會同步推進 `package.json` 宣告版本，並將開發依賴的 major 更新與 minor／patch 分組，避免高風險更新混入一般維護 PR。
 - 補齊 Dependabot 風險分類、綁定 head SHA 的政策 check、必要 CI gate、單一序列核准／squash merge，以及合併後重跑 freshness 的閉環；執行期依賴與 GitHub Actions major 仍須人工審查。
 - 收緊 npm 自動合併為開發工具 minor／patch；Babel 維持 Jest 30 相容的 7.x，並以精準 overrides 修補 Jest 測試工具鏈的 transitive DoS advisory，避免不安全的強制降級。
+- Dependabot 人工審查 PR 的 opened／reopened／synchronize／ready-for-review／closed 事件也會即時同步 freshness tracker，避免 issue 狀態延遲到月排程。
 - freshness issue 改為固定更新、指派維護者並列出處理流程；修正 dotenv 17 預設輸出啟動訊息會污染結構化 log 測試與 production logs，初始化時明確設為 quiet。
 - Guarded merge 不再假設 GitHub concurrency 會保存所有 pending events；任何觸發都重新掃描 auto-merge label queue，依 PR number 收斂最前一筆。
 

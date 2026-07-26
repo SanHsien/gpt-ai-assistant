@@ -2,7 +2,7 @@ name: Dependabot risk review
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review, closed]
 
 permissions:
   actions: write
@@ -12,10 +12,23 @@ permissions:
   pull-requests: write
 
 jobs:
+  sync-freshness:
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.repository == 'SanHsien/gpt-ai-assistant'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: 同步 Dependabot PR 狀態至 freshness tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run dependency-freshness.yml --ref main
+
   classify:
     if: >-
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.repository == 'SanHsien/gpt-ai-assistant' &&
+      github.event.action != 'closed' &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -12,6 +12,10 @@ test('Dependabot review and merge workflows preserve strict gates', () => {
   const dependabot = read('.github/dependabot.yml');
 
   expect(review).toContain('pull_request_target:');
+  expect(review).toContain('ready_for_review, closed');
+  expect(review).toContain('sync-freshness:');
+  expect(review).toContain('github.event.action != \'closed\'');
+  expect(review).toContain('gh workflow run dependency-freshness.yml --ref main');
   expect(review).toContain('github.event.pull_request.base.sha');
   expect(review).toContain('persist-credentials: false');
   expect(review).toContain('Dependabot policy');
