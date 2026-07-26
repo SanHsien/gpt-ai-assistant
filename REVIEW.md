@@ -1,6 +1,6 @@
 # 專案覆核
 
-最後覆核：2026-07-22，版本 `6.0.1`。
+最後覆核：2026-07-26，版本 `6.0.1`。
 
 ## 結論
 
@@ -14,7 +14,7 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 
 - `npm ci`：成功；`npm audit --audit-level=high`：0 vulnerabilities。
 - `npx eslint .`：通過；`npm run test:module-load`：原生 Node ESM 載入通過。
-- `npm test -- --runInBand`：74 suites、525 tests 全部通過；新增週期行程明確鐘點、次日起算、直接路由、可見確認、Google transport timeout、worker time budget、Calendar sync query v2、桌面音訊檔路由／大小限制／實際格式判斷／語音同音指令，以及刪除行程同步取消提醒的回歸，既有 durable／Quick Reply／完整 `指令`／Google contract 測試全數保留。
+- `npm test -- --runInBand`：77 suites、537 tests 全部通過；新增依賴 freshness、Dependabot 風險政策與 guarded merge workflow 回歸，既有週期行程、Google transport／worker time budget、Calendar sync query v2、桌面音訊、durable、Quick Reply、完整 `指令` 與 Google contract 測試全數保留。
 - 聚焦覆蓋：durable-only webhook fail-closed、runtime migration/config preflight、bot source 原子上限與啟停、同使用者事件順序，以及 Google provider scopes／衝突／不支援能力。
 - 單一 root 初始化前已建立包含全部 refs 的離線 bundle 並通過 `git bundle verify`；bundle 未提交至 repo。初始化後 `main` 只包含由 SanHsien 署名、訊息為「初始化」的一筆 root commit，Contributors API 只列 SanHsien。
 - GitHub CI、CodeQL 與文件站 Pages 均成功；CodeQL 與 secret scanning open alerts 都是 0。
@@ -24,6 +24,9 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 - 集中實機已通過：功能感知 `指令`、嘉義市縣天氣追問、搜尋建立行程草稿、Calendar outbound 單筆建立、Google 端 timed 修改 inbound、舊／新時刻提醒各只送一次，以及 Tasks outbound、標題 inbound、完成、重開與不產生複本。
 - Production 已移除程式不再讀取的 `APP_WEBHOOK_QUEUE`。實機發現的 `每天 22:40` 顯示為 `14:40` 已由 rc.6 的確定性時區校正修復，並在後續 LINE／Google 週期閉環驗收通過。
 - **［已修復］刪除行程殘留 pending reminder**：正式驗收清理發現已刪除的行程仍有兩筆待執行提醒。根因是 `deleteEvent`／`deleteEventByProviderId` 只刪 `events`；`6b03aa3`（2026-07-22）改為原子刪除並取消該 event 的 pending reminder，涵蓋 LINE 與 Google inbound 路徑，repository／handler／inbound 聚焦測試共 91 項通過。Production 的兩筆孤兒工作及可精準界定的舊驗收資料已清除，複查為 0。
+- **［已修復］依賴 PR 與 issue 缺少處理閉環**：`8149964`（2026-07-26）新增受信任 base 政策分類、head-SHA check、必要 CI gate、核准／squash merge、固定 freshness tracker reopen／close 與合併後重驗；GitHub Actions 已允許 workflow review，`main` 已設 strict required checks、1 人核准、stale dismissal、conversation resolution、linear history及禁止 force push／delete。Dependabot PR #7、#8 經 guarded merge 自動核准合併，執行期 PR #6 經人工檢查 release notes、差異與完整 checks 後合併。
+- **［已修復］並發事件可能遺失 auto-merge queue 項目**：GitHub concurrency 只保留一筆 running 與一筆 pending，原設計可能取消另一 PR 的成功事件；`c455265`（2026-07-26）改為每次成功事件重新掃描整個 auto-merge label queue，並維持目前 head 的政策 check、required checks 與 merge-head 比對。
+- **［已修復］開發工具 major 自動合併過寬與 npm audit 19 high**：Babel 8 通過測試但與 Jest 30 內部 Babel 7 peer contract 衝突；`047a0d3`（2026-07-26）回復 Babel 7.29.7、將 npm major 一律改為人工審查，並以套件範圍 overrides 升級 Jest 的 `glob`／`test-exclude` 漏洞鏈。`npm ci` 無 peer conflict，`npm audit --audit-level=high` 為 0，完整 lint、module-load 與 77 suites／537 tests 通過。
 - 本機以 Express 5 實際啟動 HTTP server，`GET /health/live` 回 `200 {"status":"OK"}`。GitHub CI 另成功建置 production image，啟動時不傳 `APP_PORT`，驗證預設 `3000`、HTTP liveness 與 Docker `healthy` 狀態。
 
 ## 交叉覆核（Claude，2026-07-18，`6.0.0-rc.3`）
