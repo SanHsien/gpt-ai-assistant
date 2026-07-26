@@ -1,0 +1,160 @@
+name: Dependabot guarded merge
+
+on:
+  workflow_run:
+    workflows: ["CI", "CodeQL"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "要重新檢查的 Dependabot PR number"
+        required: true
+        type: number
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-merge-queue
+  cancel-in-progress: false
+
+jobs:
+  approve-and-merge:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.pull_requests[0].number != null
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
+      TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+
+    steps:
+      - name: 確認身分、標籤與完整 checks
+        id: gate
+        run: |
+          pr_json="$(gh pr view "$PR_NUMBER" \
+            --json author,baseRefName,headRefOid,labels,mergeable,mergeStateStatus,reviewDecision,state)"
+          author="$(jq -r '.author.login' <<< "$pr_json")"
+          base="$(jq -r '.baseRefName' <<< "$pr_json")"
+          state="$(jq -r '.state' <<< "$pr_json")"
+          if [[ "$author" != "app/dependabot" || "$base" != "main" || "$state" != "OPEN" ]]; then
+            echo "非開啟中的 main Dependabot PR，停止。"
+            exit 0
+          fi
+
+          for attempt in {1..6}; do
+            mergeable="$(jq -r '.mergeable' <<< "$pr_json")"
+            [[ "$mergeable" != "UNKNOWN" ]] && break
+            sleep 5
+            pr_json="$(gh pr view "$PR_NUMBER" \
+              --json author,baseRefName,headRefOid,labels,mergeable,mergeStateStatus,reviewDecision,state)"
+          done
+
+          head_sha="$(jq -r '.headRefOid' <<< "$pr_json")"
+          mergeable="$(jq -r '.mergeable' <<< "$pr_json")"
+          merge_state="$(jq -r '.mergeStateStatus' <<< "$pr_json")"
+          auto_label="$(jq -r '[.labels[].name == "dependencies-auto-merge"] | any' <<< "$pr_json")"
+          rebase_requested="$(
+            jq -r '[.labels[].name == "dependencies-rebase-requested"] | any' <<< "$pr_json"
+          )"
+
+          if [[ "$auto_label" != "true" ]]; then
+            echo "沒有低風險自動合併標籤，停止。"
+            exit 0
+          fi
+          if [[ -n "$TRIGGER_SHA" && "$TRIGGER_SHA" != "$head_sha" ]]; then
+            echo "workflow_run 已過期，停止。"
+            exit 0
+          fi
+          if [[ "$mergeable" == "CONFLICTING" || "$merge_state" == "DIRTY" || "$merge_state" == "BEHIND" ]]; then
+            if [[ "$rebase_requested" != "true" ]]; then
+              gh pr edit "$PR_NUMBER" --add-label "dependencies-rebase-requested"
+              gh pr comment "$PR_NUMBER" --body "@dependabot rebase"
+            fi
+            echo "PR 需依最新 main 重整，等待 synchronize 後重新跑 Gate。"
+            exit 0
+          fi
+          if [[ "$mergeable" != "MERGEABLE" ]]; then
+            echo "GitHub 尚無法確認 PR 可合併（$mergeable / $merge_state），停止。"
+            exit 0
+          fi
+
+          policy_conclusion="$(gh api \
+            "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?per_page=100" \
+            --jq '
+              .check_runs
+              | map(select(.name == "Dependabot policy" and .app.slug == "github-actions"))
+              | sort_by(.started_at)
+              | reverse
+              | .[0].conclusion // "MISSING"
+            ')"
+          if [[ "$policy_conclusion" != "success" ]]; then
+            echo "head SHA 沒有可信的低風險政策 Check，停止（$policy_conclusion）。"
+            exit 0
+          fi
+
+          checks_json="$(gh pr checks "$PR_NUMBER" --json name,state 2>/dev/null || true)"
+          required_checks=("test" "docker-smoke" "Analyze (JavaScript/TypeScript)")
+          for check_name in "${required_checks[@]}"; do
+            check_state="$(jq -r \
+              --arg name "$check_name" \
+              '[.[] | select(.name == $name)][0].state // "MISSING"' \
+              <<< "$checks_json")"
+            if [[ "$check_state" != "SUCCESS" ]]; then
+              echo "$check_name 尚未成功（$check_state），等待下一次 Gate。"
+              exit 0
+            fi
+          done
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "review_decision=$(jq -r '.reviewDecision // ""' <<< "$pr_json")" >> "$GITHUB_OUTPUT"
+
+      - name: 自動核准
+        if: steps.gate.outputs.ready == 'true' && steps.gate.outputs.review_decision != 'APPROVED'
+        run: >-
+          gh pr review "$PR_NUMBER" --approve
+          --body "依賴更新已完成風險分類；npm ci、ESLint、module-load、完整 Jest、Docker smoke 與 CodeQL 均通過。"
+
+      - name: 防止換頭或決策變更後自動合併
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          EXPECTED_HEAD: ${{ steps.gate.outputs.head_sha }}
+        run: |
+          current_json="$(gh pr view "$PR_NUMBER" --json headRefOid,labels)"
+          test "$(jq -r '.headRefOid' <<< "$current_json")" = "$EXPECTED_HEAD"
+          test "$(jq -r '[.labels[].name == "dependencies-auto-merge"] | any' <<< "$current_json")" = "true"
+          test "$(jq -r '[.labels[].name == "dependencies-manual-review"] | any' <<< "$current_json")" = "false"
+
+          policy_conclusion="$(gh api \
+            "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/check-runs?per_page=100" \
+            --jq '
+              .check_runs
+              | map(select(.name == "Dependabot policy" and .app.slug == "github-actions"))
+              | sort_by(.started_at)
+              | reverse
+              | .[0].conclusion // "MISSING"
+            ')"
+          test "$policy_conclusion" = "success"
+
+      - name: Squash 合併並刪除分支
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          gh pr merge "$PR_NUMBER" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "${{ steps.gate.outputs.head_sha }}"
+          test "$(gh pr view "$PR_NUMBER" --json state --jq .state)" = "MERGED"
+
+      - name: 合併後重新驗證維護 issue
+        if: steps.gate.outputs.ready == 'true'
+        run: gh workflow run dependency-freshness.yml --ref main

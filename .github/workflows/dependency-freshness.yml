@@ -1,6 +1,11 @@
 name: 依賴新鮮度檢查
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
   schedule:
     # 每月 1 日 10:17（Asia/Taipei）盤點所有直接 npm 依賴。
     - cron: "17 2 1 * *"
@@ -9,6 +14,11 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: read
+
+concurrency:
+  group: dependency-freshness
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -18,6 +28,8 @@ jobs:
     steps:
       - name: 檢出程式碼
         uses: actions/checkout@v7
+        with:
+          ref: main
 
       - name: 設定 Node.js
         uses: actions/setup-node@v7
@@ -30,10 +42,30 @@ jobs:
 
       - name: 檢查依賴新鮮度
         id: deps
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           node tools/check-dependency-freshness.js \
             --github-output \
             --output dependency-freshness-report.md
+
+          open_prs="$(gh pr list \
+            --state open \
+            --author app/dependabot \
+            --json number,title,url)"
+          open_pr_count="$(jq 'length' <<< "$open_prs")"
+          {
+            echo
+            echo "## Open Dependabot PR"
+            echo
+            if [ "$open_pr_count" -eq 0 ]; then
+              echo "- 無"
+            else
+              jq -r '.[] | "- [#\(.number) \(.title)](\(.url))"' <<< "$open_prs"
+              echo "needs_attention=true" >> "$GITHUB_OUTPUT"
+            fi
+          } >> dependency-freshness-report.md
+
           cat dependency-freshness-report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: 建立或更新維護提醒 issue
@@ -41,13 +73,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          issue="$(gh issue list --state open --search '依賴新鮮度檢查 in:title' --json number --jq '.[0].number // empty')"
+          checked_sha="$(git rev-parse HEAD)"
+          latest_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$checked_sha" != "$latest_sha" ]; then
+            echo "檢查結果已落後目前 main，停止寫入 issue。"
+            exit 0
+          fi
+
+          gh label create dependencies \
+            --color "0366d6" \
+            --description "Dependency updates and maintenance" \
+            --force
+          issue_json="$(gh issue list \
+            --state all \
+            --search '依賴新鮮度檢查 in:title' \
+            --json number,state \
+            --jq '.[0] // {}')"
+          issue="$(jq -r '.number // empty' <<< "$issue_json")"
           if [ -n "$issue" ]; then
-            gh issue comment "$issue" --body-file dependency-freshness-report.md
+            if [ "$(jq -r '.state' <<< "$issue_json")" = "CLOSED" ]; then
+              gh issue reopen "$issue"
+            fi
+            gh issue edit "$issue" --body-file dependency-freshness-report.md
+            gh issue edit "$issue" \
+              --add-assignee "$GITHUB_REPOSITORY_OWNER" \
+              --add-label dependencies
           else
             gh issue create \
               --title "依賴新鮮度檢查：需要維護" \
-              --body-file dependency-freshness-report.md
+              --body-file dependency-freshness-report.md \
+              --assignee "$GITHUB_REPOSITORY_OWNER" \
+              --label dependencies
           fi
 
       - name: 關閉已解決的維護提醒 issue
@@ -55,6 +111,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          checked_sha="$(git rev-parse HEAD)"
+          latest_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$checked_sha" != "$latest_sha" ]; then
+            echo "檢查結果已落後目前 main，停止關閉 issue。"
+            exit 0
+          fi
+
           issue="$(gh issue list --state open --search '依賴新鮮度檢查 in:title' --json number --jq '.[0].number // empty')"
           if [ -n "$issue" ]; then
             gh issue close "$issue" --comment "本次排程檢查已確認所有直接 npm 依賴皆為最新，且 npm audit 無已知漏洞，關閉提醒。"

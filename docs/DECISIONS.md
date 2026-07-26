@@ -2,6 +2,13 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-07-26 — 依賴更新審查與 issue 閉環
+
+- Dependabot PR 先由受信任 base commit 的政策程式分類，政策結論綁定 PR head SHA；`pull_request_target` 不執行 PR 內程式碼。
+- 只有 CI 直接執行的開發工具，以及 GitHub Actions minor／patch 可自動核准。執行期 npm 依賴、未知套件、變更超出 manifest／workflow 範圍或 Actions major 一律人工審查。
+- 自動合併採單一 concurrency queue，必須同時通過 `test`、`docker-smoke`、CodeQL 與政策 check，並以 `--match-head-commit` 防止換頭後沿用舊核准。
+- Freshness issue 是維護 tracker，不是單次通知：固定 reopen／更新同一 issue、指派 repo owner；自動與人工依賴合併後都重跑，以 concurrency 與最新 `main` SHA 防止舊結果覆寫。直接依賴全新、`npm audit` 為 0 且沒有 open Dependabot PR 才關閉。
+
 ## 2026-07-18 — RC.4 完成容器可靠性與 major 維護遷移
 
 - **容器 fail-safe**：Dockerfile 與 Compose 都將缺少／空白 `APP_PORT` 收斂到 `3000`，另設獨立 `/health/live`，避免 readiness 對 Supabase／GitHub 的依賴造成 liveness 誤判。CI 實際 build／run production image，不再只做 Dockerfile 靜態覆核。

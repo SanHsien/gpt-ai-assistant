@@ -74,6 +74,12 @@ export const renderMarkdown = (rows, { audit = EMPTY_AUDIT, checkError = '' } = 
     '',
     '本報告盤點 `package.json` 的所有直接 dependencies 與 devDependencies。',
     '宣告範圍內更新可由 Dependabot 處理；跨 major 或超出目前範圍的版本需先閱讀 migration notes 並通過完整測試。',
+    '',
+    '## 處理流程',
+    '',
+    '1. 檢查同一批 Dependabot PR 的風險分類、變更範圍與必要 checks。',
+    '2. 低風險開發工具與 GitHub Actions 更新由 guarded merge workflow 序列核准；執行期依賴與 Actions major 保留人工審查。',
+    '3. 每次自動或人工合併後重新執行本檢查；只有直接依賴皆為最新、`npm audit` 為 0 且沒有 open Dependabot PR 才關閉本 issue。',
   );
   return `${lines.join('\n')}\n`;
 };

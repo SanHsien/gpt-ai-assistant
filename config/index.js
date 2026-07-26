@@ -4,6 +4,7 @@ const { env } = process;
 
 dotenv.config({
   path: env.NODE_ENV ? `.env.${env.NODE_ENV}` : '.env',
+  quiet: true,
 });
 
 const imageGenerationModel = env.OPENAI_IMAGE_GENERATION_MODEL || 'gpt-image-2';
