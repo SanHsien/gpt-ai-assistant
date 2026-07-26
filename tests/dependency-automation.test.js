@@ -18,6 +18,10 @@ test('Dependabot review and merge workflows preserve strict gates', () => {
   expect(review).toContain('gh label create "dependencies-auto-merge"');
   expect(merge).toContain('group: dependabot-merge-queue');
   expect(merge).toContain('cancel-in-progress: false');
+  expect(merge).toContain('選取合併序列最前方 PR');
+  expect(merge).toContain('--label dependencies-auto-merge');
+  expect(merge).toContain('sort_by(.number)');
+  expect(merge).toContain("github.event.workflow_run.conclusion == 'success'");
   expect(merge).toContain('author" != "app/dependabot"');
   expect(merge).toContain('dependencies-auto-merge');
   expect(merge).toContain('dependencies-manual-review');

@@ -439,7 +439,7 @@ LINE 桌面語音限制依據：[LINE Help Center](https://help.line.me/line/des
 
 CI：`.github/workflows/ci.yml` 在每次 push / PR 對 `main` 跑 `npm ci` → `npx eslint .` → `npm test`（Node 24）。README 的 CI 徽章反映此 workflow 狀態；CodeQL 徽章反映 `.github/workflows/codeql.yml`。
 
-依賴維護：Dependabot 每週一檢查 npm 與 GitHub Actions；`.github/workflows/dependency-freshness.yml` 每月 1 日另跑一次所有直接依賴的新鮮度與 `npm audit`。發現落後、漏洞、查詢失敗或仍有 open Dependabot PR 時，會建立或 reopen、指派並更新固定的維護 issue。`dependabot-review.yml` 只從受信任的 base commit 執行政策分類；CI 直接執行的開發工具，以及只改 workflow 的 GitHub Actions minor／patch，可在 `test`、`docker-smoke`、CodeQL 與綁定 head SHA 的政策 check 全數成功後，由 `dependabot-merge.yml` 序列核准並 squash merge。執行期依賴與 GitHub Actions major 一律保留人工審查。自動合併以 explicit dispatch 重驗；人工合併或直接更新 manifest 由 `main` 的 paths-filtered push 重驗。Freshness runs 以 concurrency 取消舊結果，寫 issue 前也會確認 checkout 仍是最新 `main`。只有版本、`npm audit` 與 open PR 三項都乾淨才關閉 issue。可用 `npm run check:dependencies` 在本機產生同格式報告。
+依賴維護：Dependabot 每週一檢查 npm 與 GitHub Actions；`.github/workflows/dependency-freshness.yml` 每月 1 日另跑一次所有直接依賴的新鮮度與 `npm audit`。發現落後、漏洞、查詢失敗或仍有 open Dependabot PR 時，會建立或 reopen、指派並更新固定的維護 issue。`dependabot-review.yml` 只從受信任的 base commit 執行政策分類；CI 直接執行的開發工具，以及只改 workflow 的 GitHub Actions minor／patch，可在 `test`、`docker-smoke`、CodeQL 與綁定 head SHA 的政策 check 全數成功後，由 `dependabot-merge.yml` 核准並 squash merge。Merge workflow 的任何成功 check 事件都會重新掃描整個 auto-merge label queue，按 PR number 處理最前一筆；不依賴 GitHub concurrency 保存每一個 pending event。執行期依賴與 GitHub Actions major 一律保留人工審查。自動合併以 explicit dispatch 重驗；人工合併或直接更新 manifest 由 `main` 的 paths-filtered push 重驗。Freshness runs 以 concurrency 取消舊結果，寫 issue 前也會確認 checkout 仍是最新 `main`。只有版本、`npm audit` 與 open PR 三項都乾淨才關閉 issue。可用 `npm run check:dependencies` 在本機產生同格式報告。
 
 ## Legacy 與上游邊界
 
