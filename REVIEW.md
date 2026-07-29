@@ -1,6 +1,6 @@
 # 專案覆核
 
-最後覆核：2026-07-26，版本 `6.0.1`。
+最後覆核：2026-07-29，版本 `6.0.1`。
 
 ## 結論
 
@@ -14,7 +14,7 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 
 - `npm ci`：成功；`npm audit --audit-level=high`：0 vulnerabilities。
 - `npx eslint .`：通過；`npm run test:module-load`：原生 Node ESM 載入通過。
-- `npm test -- --runInBand`：77 suites、537 tests 全部通過；新增依賴 freshness、Dependabot 風險政策與 guarded merge workflow 回歸，既有週期行程、Google transport／worker time budget、Calendar sync query v2、桌面音訊、durable、Quick Reply、完整 `指令` 與 Google contract 測試全數保留。
+- `npm test -- --runInBand`：77 suites、538 tests 全部通過；新增依賴 freshness、核准暫緩版本邊界、Dependabot 風險政策與 guarded merge workflow 回歸，既有週期行程、Google transport／worker time budget、Calendar sync query v2、桌面音訊、durable、Quick Reply、完整 `指令` 與 Google contract 測試全數保留。
 - 聚焦覆蓋：durable-only webhook fail-closed、runtime migration/config preflight、bot source 原子上限與啟停、同使用者事件順序，以及 Google provider scopes／衝突／不支援能力。
 - 單一 root 初始化前已建立包含全部 refs 的離線 bundle 並通過 `git bundle verify`；bundle 未提交至 repo。初始化後 `main` 只包含由 SanHsien 署名、訊息為「初始化」的一筆 root commit，Contributors API 只列 SanHsien。
 - GitHub CI、CodeQL 與文件站 Pages 均成功；CodeQL 與 secret scanning open alerts 都是 0。
@@ -28,6 +28,7 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 - **［已修復］並發事件可能遺失 auto-merge queue 項目**：GitHub concurrency 只保留一筆 running 與一筆 pending，原設計可能取消另一 PR 的成功事件；`c455265`（2026-07-26）改為每次成功事件重新掃描整個 auto-merge label queue，並維持目前 head 的政策 check、required checks 與 merge-head 比對。
 - **［已修復］開發工具 major 自動合併過寬與 npm audit 19 high**：Babel 8 通過測試但與 Jest 30 內部 Babel 7 peer contract 衝突；`047a0d3`（2026-07-26）回復 Babel 7.29.7、將 npm major 一律改為人工審查，並以套件範圍 overrides 升級 Jest 的 `glob`／`test-exclude` 漏洞鏈；`86ad207`（2026-07-26）同步讓 Dependabot 暫緩不相容的 Babel major，並由 freshness issue 持續追蹤相容時機。`npm ci` 無 peer conflict，`npm audit --audit-level=high` 為 0，完整 lint、module-load 與 77 suites／537 tests 通過。
 - **［已修復］人工審查 PR 與 tracker 狀態延遲**：最終 `gpt-5.6-sol` high 跨 repo 覆核指出，人工審查型 Dependabot PR 若只開啟或未合併直接關閉，原本要等月排程才更新 freshness tracker；`735fcb6`（2026-07-26）讓 opened／reopened／synchronize／ready-for-review／closed 都立即 dispatch freshness，closed 只同步 tracker、不再分類或修改已關閉 PR，且全程不 checkout／執行 PR 程式碼。
+- **［已修復］PR lifecycle dispatch 失敗與 tracker 無法關閉**：PR #9 實跑顯示，無 checkout 的 `sync-freshness` 未指定 repository，`gh workflow run` 因找不到 Git context 失敗；同時 Babel 8 已核准暫緩仍永久計入 `needs_attention`。`fdb0841`（2026-07-29）明確傳入 repository，新增僅限 Babel 8 的版本化 deferral（不隱藏 7.x 更新或 Babel 9），並人工審查升級 `express-rate-limit` 8.6.1。完整 lint、module-load、77 suites／538 tests 與 `npm audit` 0 通過；freshness 本機輸出 `needs_attention=false`。
 - 本機以 Express 5 實際啟動 HTTP server，`GET /health/live` 回 `200 {"status":"OK"}`。GitHub CI 另成功建置 production image，啟動時不傳 `APP_PORT`，驗證預設 `3000`、HTTP liveness 與 Docker `healthy` 狀態。
 
 ## 交叉覆核（Claude，2026-07-18，`6.0.0-rc.3`）
