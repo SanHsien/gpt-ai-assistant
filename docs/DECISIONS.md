@@ -7,6 +7,7 @@
 - Dependabot PR 先由受信任 base commit 的政策程式分類，政策結論綁定 PR head SHA；`pull_request_target` 不執行 PR 內程式碼。
 - 只有 CI 直接執行的開發工具 minor／patch，以及 GitHub Actions minor／patch 可自動核准。執行期 npm 依賴、npm 開發工具 major、未知套件、變更超出 manifest／workflow 範圍或 Actions major 一律人工審查；Babel 8 曾由過寬政策自動合併，但 Jest 30 的 Babel 轉換鏈仍要求 Babel 7，已立即回復 7.x 並以此收緊政策。
 - Jest 30 上游仍鎖定含已知 DoS advisory 的 `glob`／`test-exclude` major，因此以套件範圍精準 `overrides` 升到支援 Node 24 的修正版；不採 `npm audit fix --force` 所建議的 Jest／babel-jest 大幅降級。
+- 已審查但暫時不相容的 major 以 `.github/dependency-deferrals.json` 明列版本邊界與原因；freshness 只豁免該 major，現有 major 範圍內更新、下一個 major、audit 漏洞或 open PR 仍會建立 tracker。PR lifecycle dispatch 明確指定 repository，避免無 checkout job 依賴本機 Git context。
 - 自動合併採單一 concurrency group，但不把 pending workflow events 當可靠 FIFO；每次觸發都重新掃描 auto-merge labels 並按 PR number 選最前一筆。必須同時通過 `test`、`docker-smoke`、CodeQL 與政策 check，並以 `--match-head-commit` 防止換頭後沿用舊核准。
 - Freshness issue 是維護 tracker，不是單次通知：固定 reopen／更新同一 issue、指派 repo owner；Dependabot PR 每次 opened／reopened／synchronize／ready-for-review／closed，以及自動或人工依賴合併後都重跑，以 concurrency 與最新 `main` SHA 防止舊結果覆寫。直接依賴全新、`npm audit` 為 0 且沒有 open Dependabot PR 才關閉。
 

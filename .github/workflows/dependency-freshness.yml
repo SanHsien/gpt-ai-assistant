@@ -120,5 +120,5 @@ jobs:
 
           issue="$(gh issue list --state open --search '依賴新鮮度檢查 in:title' --json number --jq '.[0].number // empty')"
           if [ -n "$issue" ]; then
-            gh issue close "$issue" --comment "本次排程檢查已確認所有直接 npm 依賴皆為最新，且 npm audit 無已知漏洞，關閉提醒。"
+            gh issue close "$issue" --comment "本次排程檢查已確認所有可處理的直接 npm 依賴皆為最新；已核准暫緩項目仍符合版本邊界，且 npm audit 無已知漏洞、沒有 open Dependabot PR，關閉提醒。"
           fi

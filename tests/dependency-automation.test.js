@@ -15,7 +15,8 @@ test('Dependabot review and merge workflows preserve strict gates', () => {
   expect(review).toContain('ready_for_review, closed');
   expect(review).toContain('sync-freshness:');
   expect(review).toContain('github.event.action != \'closed\'');
-  expect(review).toContain('gh workflow run dependency-freshness.yml --ref main');
+  expect(review).toContain('gh workflow run dependency-freshness.yml');
+  expect(review).toContain('--repo "$GITHUB_REPOSITORY"');
   expect(review).toContain('github.event.pull_request.base.sha');
   expect(review).toContain('persist-credentials: false');
   expect(review).toContain('Dependabot policy');
@@ -52,4 +53,5 @@ test('freshness workflow owns and resolves one maintenance issue', () => {
   expect(freshness).toContain('--add-label dependencies');
   expect(freshness).toContain('gh issue edit "$issue" --body-file');
   expect(freshness).toContain('gh issue close "$issue"');
+  expect(freshness).toContain('已核准暫緩項目仍符合版本邊界');
 });

@@ -22,7 +22,10 @@ jobs:
       - name: 同步 Dependabot PR 狀態至 freshness tracker
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run dependency-freshness.yml --ref main
+        run: >-
+          gh workflow run dependency-freshness.yml
+          --repo "$GITHUB_REPOSITORY"
+          --ref main
 
   classify:
     if: >-

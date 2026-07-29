@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
 import {
-  appendFileSync, writeFileSync,
+  appendFileSync, readFileSync, writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
 
 const ISSUE_TITLE = 'gpt-ai-assistant 依賴新鮮度檢查';
 const EMPTY_AUDIT = {
@@ -25,7 +26,41 @@ export const normalizeOutdated = (outdated = {}) => Object.entries(outdated)
   }))
   .sort((left, right) => left.name.localeCompare(right.name));
 
-const statusFor = ({ current, wanted, latest }) => {
+const majorOf = (version) => {
+  const match = String(version).match(/^(\d+)\./);
+  return match ? Number(match[1]) : null;
+};
+
+export const applyApprovedDeferrals = (rows, deferrals = {}) => rows.map((row) => {
+  const deferral = deferrals[row.name];
+  const currentMajor = majorOf(row.current);
+  const latestMajor = majorOf(row.latest);
+  const approvedMajor = Number(deferral?.latestMajor);
+  const deferred = Boolean(
+    deferral
+      && typeof deferral.reason === 'string'
+      && deferral.reason.trim()
+      && row.current === row.wanted
+      && Number.isInteger(currentMajor)
+      && Number.isInteger(latestMajor)
+      && Number.isInteger(approvedMajor)
+      && currentMajor < approvedMajor
+      && latestMajor === approvedMajor,
+  );
+  return deferred ? { ...row, deferredReason: deferral.reason } : row;
+});
+
+export const loadApprovedDeferrals = ({
+  cwd = process.cwd(),
+  path = '.github/dependency-deferrals.json',
+} = {}) => JSON.parse(readFileSync(resolve(cwd, path), 'utf8'));
+
+const statusFor = ({
+  current, wanted, latest, deferredReason,
+}) => {
+  if (deferredReason) {
+    return `已核准暫緩：${deferredReason}`;
+  }
   if (current !== wanted) {
     return wanted === latest ? '可直接更新' : '可更新，另有新版待評估';
   }
@@ -73,13 +108,13 @@ export const renderMarkdown = (rows, { audit = EMPTY_AUDIT, checkError = '' } = 
   lines.push(
     '',
     '本報告盤點 `package.json` 的所有直接 dependencies 與 devDependencies。',
-    '宣告範圍內更新可由 Dependabot 處理；跨 major 或超出目前範圍的版本需先閱讀 migration notes 並通過完整測試。',
+    '宣告範圍內更新可由 Dependabot 處理；跨 major 或超出目前範圍的版本需先閱讀 migration notes 並通過完整測試。已核准暫緩只適用明列的 major，範圍內更新或下一個 major 仍會重新提醒。',
     '',
     '## 處理流程',
     '',
     '1. 檢查同一批 Dependabot PR 的風險分類、變更範圍與必要 checks。',
     '2. 低風險開發工具與 GitHub Actions minor／patch 由 guarded merge workflow 序列核准；執行期依賴與所有 major 保留人工審查。',
-    '3. 每次自動或人工合併後重新執行本檢查；只有直接依賴皆為最新、`npm audit` 為 0 且沒有 open Dependabot PR 才關閉本 issue。',
+    '3. 每次自動或人工合併後重新執行本檢查；只有可處理的直接依賴皆為最新、已核准暫緩仍符合版本邊界、`npm audit` 為 0 且沒有 open Dependabot PR 才關閉本 issue。',
   );
   return `${lines.join('\n')}\n`;
 };
@@ -170,15 +205,25 @@ const parseArgs = (args) => {
 
 export const main = (args = process.argv.slice(2)) => {
   const options = parseArgs(args);
-  const { rows, audit, checkError } = checkDependencies();
-  const report = renderMarkdown(rows, { audit, checkError });
+  const { rows: outdatedRows, audit, checkError } = checkDependencies();
+  let rows = outdatedRows;
+  let deferralError = '';
+  try {
+    rows = applyApprovedDeferrals(rows, loadApprovedDeferrals());
+  } catch (error) {
+    deferralError = `無法載入核准暫緩設定：${error.message}`;
+  }
+  const combinedError = [checkError, deferralError].filter(Boolean).join('；');
+  const report = renderMarkdown(rows, { audit, checkError: combinedError });
   writeFileSync(options.output, report, 'utf8');
   process.stdout.write(report);
 
   if (options.githubOutput) {
     writeGithubOutput({
-      needsAttention: rows.length > 0 || audit.total > 0 || Boolean(checkError),
-      checkFailed: Boolean(checkError),
+      needsAttention: rows.some((row) => !row.deferredReason)
+        || audit.total > 0
+        || Boolean(combinedError),
+      checkFailed: Boolean(combinedError),
       reportPath: options.output,
     });
   }

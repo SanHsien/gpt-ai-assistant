@@ -2,6 +2,7 @@ import {
   afterEach, expect, test,
 } from '@jest/globals';
 import {
+  applyApprovedDeferrals,
   normalizeOutdated,
   normalizeAudit,
   renderMarkdown,
@@ -67,6 +68,47 @@ test('renders actionable and current reports', () => {
   expect(renderMarkdown([])).toContain('全部為最新');
   expect(renderMarkdown([], { checkError: 'registry timeout' }))
     .toContain('檢查失敗：registry timeout');
+});
+
+test('approved major deferrals do not hide in-range or future-major updates', () => {
+  const deferrals = {
+    '@babel/core': {
+      latestMajor: 8,
+      reason: 'Jest 30 仍要求 Babel 7',
+    },
+  };
+  const [approved] = applyApprovedDeferrals([{
+    name: '@babel/core',
+    current: '7.29.7',
+    wanted: '7.29.7',
+    latest: '8.0.1',
+    type: 'devDependencies',
+  }], deferrals);
+  expect(approved.deferredReason).toContain('Jest 30');
+  expect(renderMarkdown([approved])).toContain('已核准暫緩');
+
+  const [inRange] = applyApprovedDeferrals([{
+    ...approved,
+    current: '7.29.6',
+    wanted: '7.29.7',
+    deferredReason: undefined,
+  }], deferrals);
+  expect(inRange.deferredReason).toBeUndefined();
+
+  const [futureMajor] = applyApprovedDeferrals([{
+    ...approved,
+    latest: '9.0.0',
+    deferredReason: undefined,
+  }], deferrals);
+  expect(futureMajor.deferredReason).toBeUndefined();
+
+  const [missingCurrent] = applyApprovedDeferrals([{
+    ...approved,
+    current: 'MISSING',
+    wanted: 'MISSING',
+    deferredReason: undefined,
+  }], deferrals);
+  expect(missingCurrent.deferredReason).toBeUndefined();
 });
 
 test('normalizes missing npm audit severities', () => {

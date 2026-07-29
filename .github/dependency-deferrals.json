@@ -1,0 +1,10 @@
+{
+  "@babel/core": {
+    "latestMajor": 8,
+    "reason": "Jest 30 的 Babel transform 鏈仍要求 Babel 7"
+  },
+  "@babel/preset-env": {
+    "latestMajor": 8,
+    "reason": "Jest 30 的 Babel transform 鏈仍要求 Babel 7"
+  }
+}
