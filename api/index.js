@@ -16,6 +16,7 @@ import { drainQueue, JOB_KINDS } from '../services/worker.js';
 import { enqueueDueWeatherReminders } from '../services/weather-subscription.js';
 import { enqueueDueCalendarInbound } from '../services/google-calendar-inbound.js';
 import { enqueueDueTasksInbound } from '../services/google-tasks-inbound.js';
+import { backfillTaskReminders } from '../services/task-reminder-scheduling.js';
 import { t } from '../locales/index.js';
 
 const app = express();
@@ -124,11 +125,14 @@ app.post('/cron/reminders', async (req, res) => {
     if (config.ENABLE_GOOGLE_CALENDAR_INBOUND) await enqueueDueCalendarInbound();
     // Google Tasks → 本地 inbound 輪詢：挑到期帳號入列 inbound job。
     if (config.ENABLE_GOOGLE_TASKS_INBOUND) await enqueueDueTasksInbound();
+    // Feature rollout / temporarily disabled reminders may leave future due tasks without jobs.
+    if (config.ENABLE_REMINDERS) await backfillTaskReminders();
     const summary = await drainQueue({
       maxJobs: config.REMINDER_WORKER_MAX_JOBS,
       maxDurationMs: config.REMINDER_WORKER_TIME_BUDGET_MS,
       kinds: [
         JOB_KINDS.LINE_REMINDER,
+        JOB_KINDS.TASK_REMINDER,
         JOB_KINDS.GOOGLE_CALENDAR_SYNC,
         JOB_KINDS.GOOGLE_CALENDAR_STATUS,
         JOB_KINDS.WEATHER_DAILY,

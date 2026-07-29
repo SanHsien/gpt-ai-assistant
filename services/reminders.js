@@ -3,6 +3,7 @@ import config from '../config/index.js';
 import { decryptJson } from './data-protection.js';
 import { push } from './line.js';
 import { getEvent } from '../repositories/events.js';
+import { getTask } from '../repositories/tasks.js';
 import { markJobDelivered, rescheduleJob } from '../repositories/jobs.js';
 import { getUserById } from '../repositories/users.js';
 import { scheduleEventReminders } from './reminder-scheduling.js';
@@ -149,6 +150,30 @@ const reminderMessage = (event, leadMinutes = null) => ({
   },
 });
 
+const taskReminderMessage = (task, leadMinutes = null, fallbackTimezone = 'Asia/Taipei') => {
+  const timezone = task.timezone || fallbackTimezone;
+  const due = new Intl.DateTimeFormat('zh-TW', {
+    timeZone: timezone,
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(task.due_at));
+  return {
+    type: 'text',
+    text: `任務提醒${leadMinutes ? `（${formatLead(leadMinutes)}）` : ''}\n${task.title}\n期限：${due}`,
+    quickReply: {
+      items: [{
+        type: 'action',
+        action: {
+          type: 'postback',
+          label: '標記完成',
+          data: `完成任務 ${task.id}`,
+          displayText: '完成任務',
+        },
+      }],
+    },
+  };
+};
+
 const doNotRetry = (err) => Object.assign(err, { retryable: false });
 
 export const sendLineReminder = async (job) => {
@@ -237,4 +262,56 @@ export const sendLineReminder = async (job) => {
   await markJobDelivered(job.id, job.lease_token);
 };
 
-export default { getDefaultReminderTime, quietHoursEnd, sendLineReminder };
+export const sendTaskReminder = async (job) => {
+  if (job.delivered_at) return;
+  const {
+    ownerId, taskId, taskVersion, channelTarget, leadMinutes = null,
+  } = job.payload;
+  const task = await getTask(ownerId, taskId);
+  if (!task || task.status !== 'open' || !task.due_at || task.version !== taskVersion) return;
+
+  const user = await getUserById(ownerId);
+  if (user?.reminders_paused) return;
+
+  const scheduledAt = new Date(job.run_at).getTime();
+  if (Number.isFinite(scheduledAt)
+    && Date.now() - scheduledAt > config.REMINDER_STALE_MINUTES * 60 * 1000) {
+    return;
+  }
+
+  const timezone = task.timezone || user?.timezone || 'Asia/Taipei';
+  const quietEnd = quietHoursEnd(new Date(), timezone, user?.quiet_hours);
+  if (quietEnd) {
+    await rescheduleJob(job.id, job.lease_token, quietEnd);
+    return;
+  }
+
+  let target;
+  try {
+    target = decryptJson(channelTarget)?.id;
+  } catch (err) {
+    throw doNotRetry(err);
+  }
+  if (!target) throw doNotRetry(new Error('reminder delivery target is missing'));
+
+  try {
+    const current = await getTask(ownerId, taskId);
+    if (!current || current.status !== 'open' || current.version !== taskVersion) return;
+    await push({
+      to: target,
+      messages: [taskReminderMessage(current, leadMinutes, user?.timezone || 'Asia/Taipei')],
+      retryKey: job.id,
+    });
+  } catch (err) {
+    const status = err.response?.status;
+    if (status >= 400 && status < 500 && status !== 409 && status !== 429) {
+      throw doNotRetry(err);
+    }
+    if (status !== 409) throw err;
+  }
+  await markJobDelivered(job.id, job.lease_token);
+};
+
+export default {
+  getDefaultReminderTime, quietHoursEnd, sendLineReminder, sendTaskReminder,
+};

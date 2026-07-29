@@ -235,17 +235,112 @@ const inboundFieldsEqual = (draft, event) => (
  * 套用時設 sync_status='synced'（不觸發 outbound，防迴圈），並取消舊提醒、依新開始時間重排。
  *
  * @param {{ ownerId: string, providerEventId: string, draft: Object,
- *   providerUpdatedAt: string|null, remindAt: Date|null, remindersEnabled: boolean }} params
- * @returns {Promise<{ applied: boolean, reason?: string, event?: Object }>}
+ *   providerUpdatedAt: string|null, remindAt: Date|null, remindersEnabled: boolean,
+ *   allowCreate?: boolean, createTimezone?: string|null,
+ *   baselineGeneration?: string|null, claimToken?: string|null }} params
+ * @returns {Promise<{ applied: boolean, action?: 'created'|'updated',
+ *   reason?: string, event?: Object }>}
  */
 export const applyInboundEventUpdate = async ({
-  ownerId, providerEventId, draft, providerUpdatedAt, remindAt, remindersEnabled,
+  ownerId,
+  providerEventId,
+  draft,
+  providerUpdatedAt,
+  remindAt,
+  remindersEnabled,
+  allowCreate = false,
+  createTimezone = null,
+  baselineGeneration = null,
+  claimToken = null,
 }) => withTransaction(async (client) => {
+  if (claimToken) {
+    const claim = await client.query(
+      `SELECT owner_id FROM calendar_accounts
+       WHERE owner_id = $1 AND inbound_claim_token = $2
+       FOR UPDATE`,
+      [ownerId, claimToken],
+    );
+    if (!claim.rows[0]) return { applied: false, reason: 'stale_claim' };
+  }
   const current = await client.query(
     'SELECT * FROM events WHERE owner_id = $1 AND provider_event_id = $2 FOR UPDATE',
     [ownerId, providerEventId],
   );
-  const event = current.rows[0];
+  let event = current.rows[0];
+  let created = false;
+
+  if (!event && allowCreate) {
+    const creationDraft = draft.timezone == null && createTimezone
+      ? { ...draft, timezone: createTimezone }
+      : draft;
+    const inserted = await client.query(
+      `INSERT INTO events
+         (owner_id, title, start_at, end_at, timezone, all_day, location, notes,
+         recurrence, provider_event_id, sync_status, synced_at, sync_error_code,
+          provider_updated_at, inbound_origin, inbound_baseline_generation)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10,
+               'synced', now(), null, $11, true, $12)
+       ON CONFLICT (owner_id, provider_event_id)
+         WHERE provider_event_id IS NOT NULL
+       DO NOTHING
+       RETURNING *`,
+      [
+        ownerId,
+        ...draftParams(creationDraft),
+        providerEventId,
+        providerUpdatedAt ?? null,
+        baselineGeneration,
+      ],
+    );
+    event = inserted.rows[0];
+    created = Boolean(event);
+    // A retry or concurrent inbound job may have won the unique provider mapping race.
+    if (!event) {
+      const raced = await client.query(
+        'SELECT * FROM events WHERE owner_id = $1 AND provider_event_id = $2 FOR UPDATE',
+        [ownerId, providerEventId],
+      );
+      event = raced.rows[0];
+    }
+  }
+
+  if (created) {
+    let reminderJobId = null;
+    if (remindersEnabled && remindAt && remindAt.getTime() > Date.now()) {
+      const target = await client.query(
+        'SELECT channel_target FROM users WHERE id = $1',
+        [ownerId],
+      );
+      if (target.rows[0]?.channel_target) {
+        const scheduled = await scheduleEventReminders({
+          ownerId,
+          event,
+          channelTarget: target.rows[0].channel_target,
+          remindAt,
+          executor: client.query.bind(client),
+        });
+        reminderJobId = scheduled.startJobId;
+      }
+    }
+    await client.query(
+      'UPDATE events SET reminder_job_id = $3, updated_at = now() WHERE owner_id = $1 AND id = $2',
+      [ownerId, event.id, reminderJobId],
+    );
+    event.reminder_job_id = reminderJobId;
+    return { applied: true, action: 'created', event };
+  }
+
+  // Baseline membership is independent of provider update freshness. Mark an existing imported
+  // row as seen before stale/no-change policy exits, otherwise successful cleanup could delete it.
+  if (event && baselineGeneration && event.inbound_origin) {
+    await client.query(
+      `UPDATE events SET inbound_baseline_generation = $3, updated_at = now()
+       WHERE owner_id = $1 AND id = $2`,
+      [ownerId, event.id, baselineGeneration],
+    );
+    event = { ...event, inbound_baseline_generation: baselineGeneration };
+  }
+
   const decision = decideCalendarInbound({ event, providerUpdatedAt });
   if (decision !== 'apply') return { applied: false, reason: decision };
 
@@ -258,10 +353,15 @@ export const applyInboundEventUpdate = async ({
   const incoming = toMs(providerUpdatedAt);
 
   if (inboundFieldsEqual(effectiveDraft, event)) {
-    if (incoming != null) {
+    if (incoming != null || (baselineGeneration && event.inbound_origin)) {
       await client.query(
-        'UPDATE events SET provider_updated_at = $3, updated_at = now() WHERE owner_id = $1 AND id = $2',
-        [ownerId, event.id, providerUpdatedAt],
+        `UPDATE events SET
+           provider_updated_at = COALESCE($3, provider_updated_at),
+           inbound_baseline_generation = CASE WHEN inbound_origin THEN COALESCE($4, inbound_baseline_generation)
+             ELSE inbound_baseline_generation END,
+           updated_at = now()
+         WHERE owner_id = $1 AND id = $2`,
+        [ownerId, event.id, providerUpdatedAt, baselineGeneration],
       );
     }
     return { applied: false, reason: 'no_change' };
@@ -272,13 +372,19 @@ export const applyInboundEventUpdate = async ({
        title = $3, start_at = $4, end_at = $5, timezone = $6, all_day = $7,
        location = $8, notes = $9,
        sync_status = 'synced', synced_at = now(), sync_error_code = null,
-       provider_updated_at = $10, version = version + 1, updated_at = now()
+       provider_updated_at = $10,
+       inbound_baseline_generation = CASE WHEN inbound_origin THEN COALESCE($11, inbound_baseline_generation)
+         ELSE inbound_baseline_generation END,
+       version = version + 1, updated_at = now()
      WHERE owner_id = $1 AND id = $2
      RETURNING *`,
     [
       ownerId, event.id, effectiveDraft.title, effectiveDraft.start, effectiveDraft.end ?? null,
       effectiveDraft.timezone ?? null, effectiveDraft.allDay === true,
-      effectiveDraft.location ?? null, effectiveDraft.notes ?? null, providerUpdatedAt ?? null,
+      effectiveDraft.location ?? null,
+      effectiveDraft.notes ?? null,
+      providerUpdatedAt ?? null,
+      baselineGeneration,
     ],
   );
   const updated = updatedRow.rows[0];
@@ -309,7 +415,7 @@ export const applyInboundEventUpdate = async ({
     [ownerId, event.id, reminderJobId],
   );
   updated.reminder_job_id = reminderJobId;
-  return { applied: true, event: updated };
+  return { applied: true, action: 'updated', event: updated };
 });
 
 const completeEventScoped = async (ownerId, id, providerEventId, executor = query) => {
@@ -404,6 +510,162 @@ export const deleteEventByProviderId = (ownerId, providerEventId, executor = que
   deleteEventScoped(ownerId, null, providerEventId, executor)
 );
 
+const deleteInboundWhere = async (ownerId, predicateSql, values, executor = query) => {
+  const result = await executor(
+    `WITH deleted AS (
+       DELETE FROM events
+       WHERE owner_id = $1 AND inbound_origin = true AND ${predicateSql}
+       RETURNING id
+     ), cancelled_reminders AS (
+       UPDATE jobs
+       SET status = 'done', lease_until = null, lease_token = null, updated_at = now()
+       WHERE status = 'pending'
+         AND EXISTS (
+           SELECT 1 FROM deleted
+           WHERE jobs.idempotency_key LIKE 'line-reminder:' || deleted.id::text || ':%'
+         )
+     )
+     SELECT id FROM deleted`,
+    [ownerId, ...values],
+  );
+  return result.rowCount;
+};
+
+export const deleteInboundEventByProviderId = async (
+  ownerId,
+  providerEventId,
+  executor = query,
+) => (await deleteInboundWhere(
+  ownerId,
+  'provider_event_id = $2',
+  [providerEventId],
+  executor,
+)) > 0;
+
+export const deleteCalendarInboundEventByProviderId = async ({
+  ownerId,
+  providerEventId,
+  claimToken,
+  inboundOnly = false,
+}) => withTransaction(async (client) => {
+  const claim = await client.query(
+    `SELECT owner_id FROM calendar_accounts
+     WHERE owner_id = $1 AND inbound_claim_token = $2
+     FOR UPDATE`,
+    [ownerId, claimToken],
+  );
+  if (!claim.rows[0]) return { deleted: false, staleClaim: true };
+  const deleted = inboundOnly
+    ? await deleteInboundEventByProviderId(
+      ownerId,
+      providerEventId,
+      client.query.bind(client),
+    )
+    : await deleteEventByProviderId(ownerId, providerEventId, client.query.bind(client));
+  return { deleted, staleClaim: false };
+});
+
+export const deleteMissingInboundEvents = (
+  ownerId,
+  baselineGeneration,
+  executor = query,
+) => deleteInboundWhere(
+  ownerId,
+  'inbound_baseline_generation IS DISTINCT FROM $2::uuid',
+  [baselineGeneration],
+  executor,
+);
+
+export const reconcileInboundEventReminders = async (
+  ownerId,
+  { limit = Math.max(1, config.DATABASE_POOL_MAX * 20), claimToken = null } = {},
+) => withTransaction(async (client) => {
+  if (claimToken) {
+    const claim = await client.query(
+      `SELECT owner_id FROM calendar_accounts
+       WHERE owner_id = $1 AND inbound_claim_token = $2
+       FOR UPDATE`,
+      [ownerId, claimToken],
+    );
+    if (!claim.rows[0]) return { scheduled: 0, staleClaim: true };
+  }
+  const targetResult = await client.query(
+    'SELECT channel_target FROM users WHERE id = $1',
+    [ownerId],
+  );
+  const channelTarget = targetResult.rows[0]?.channel_target;
+  if (!channelTarget) return { scheduled: 0 };
+  const rows = await client.query(
+    `SELECT * FROM events
+     WHERE owner_id = $1 AND inbound_origin = true
+       AND status = 'confirmed' AND start_at > now() AND reminder_job_id IS NULL
+     ORDER BY start_at
+     LIMIT $2
+     FOR UPDATE`,
+    [ownerId, limit],
+  );
+  let scheduled = 0;
+  // Keep one transaction/connection and enqueue sequentially; no pool fan-out.
+  for (const event of rows.rows) {
+    const remindAt = new Date(event.start_at);
+    // eslint-disable-next-line no-await-in-loop
+    const result = await scheduleEventReminders({
+      ownerId,
+      event,
+      channelTarget,
+      remindAt,
+      executor: client.query.bind(client),
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await client.query(
+      'UPDATE events SET reminder_job_id = $3, updated_at = now() WHERE owner_id = $1 AND id = $2',
+      [ownerId, event.id, result.startJobId],
+    );
+    if (result.queued > 0) scheduled += 1;
+  }
+  return { scheduled };
+});
+
+/**
+ * Baseline cleanup and cursor advancement are one fenced transaction. Only the
+ * final page may call this function.
+ */
+export const finalizeCalendarInboundSync = async ({
+  ownerId,
+  claimToken,
+  nextSyncToken,
+  baselineGeneration = null,
+  queryVersion,
+}) => withTransaction(async (client) => {
+  const claim = await client.query(
+    `SELECT owner_id FROM calendar_accounts
+     WHERE owner_id = $1 AND inbound_claim_token = $2
+     FOR UPDATE`,
+    [ownerId, claimToken],
+  );
+  if (!claim.rows[0]) return { completed: false, removed: 0, staleClaim: true };
+
+  const removed = baselineGeneration
+    ? await deleteMissingInboundEvents(
+      ownerId,
+      baselineGeneration,
+      client.query.bind(client),
+    )
+    : 0;
+  const completed = await client.query(
+    `UPDATE calendar_accounts
+     SET sync_token = $3, sync_query_version = $4,
+         inbound_claim_token = null, inbound_claimed_at = null,
+         inbound_baseline_generation = null, inbound_baseline_time_min = null,
+         inbound_page_token = null, updated_at = now()
+     WHERE owner_id = $1 AND inbound_claim_token = $2
+     RETURNING owner_id`,
+    [ownerId, claimToken, nextSyncToken, queryVersion],
+  );
+  if (!completed.rows[0]) return { completed: false, removed: 0, staleClaim: true };
+  return { completed: true, removed, staleClaim: false };
+});
+
 export default {
   applyInboundEventUpdate,
   createEvent,
@@ -411,6 +673,10 @@ export default {
   completeEventByProviderId,
   deleteEvent,
   deleteEventByProviderId,
+  deleteInboundEventByProviderId,
+  deleteCalendarInboundEventByProviderId,
+  deleteMissingInboundEvents,
+  finalizeCalendarInboundSync,
   enqueueEventSyncRetry,
   getEvent,
   getEventByReference,
@@ -422,5 +688,6 @@ export default {
   listUnsyncedEvents,
   markEventSynced,
   markEventSyncError,
+  reconcileInboundEventReminders,
   updateEvent,
 };

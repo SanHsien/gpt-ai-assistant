@@ -4,17 +4,26 @@ import {
 
 let query;
 let withTransaction;
+let cancelPendingTaskReminders;
+let scheduleTaskReminders;
 
 const load = async () => {
   jest.resetModules();
   query = jest.fn();
   withTransaction = jest.fn((fn) => fn({ query }));
+  cancelPendingTaskReminders = jest.fn().mockResolvedValue(undefined);
+  scheduleTaskReminders = jest.fn().mockResolvedValue({ queued: 2 });
   jest.doMock('../../services/database.js', () => ({ query, withTransaction }));
+  jest.doMock('../../services/task-reminder-scheduling.js', () => ({
+    cancelPendingTaskReminders,
+    scheduleTaskReminders,
+  }));
   return import('../../repositories/tasks.js');
 };
 
 afterEach(() => {
   jest.dontMock('../../services/database.js');
+  jest.dontMock('../../services/task-reminder-scheduling.js');
   jest.resetModules();
 });
 
@@ -28,6 +37,14 @@ test('createTask inserts owner-scoped and returns the row', async () => {
   expect(params[0]).toBe('owner1');
   expect(params[1]).toBe('買牛奶');
   expect(params[3]).toBeNull();
+});
+
+test('createTask accepts a transaction executor', async () => {
+  const { createTask } = await load();
+  const executor = jest.fn().mockResolvedValue({ rows: [{ id: 't1' }] });
+  await createTask('owner1', { title: 'x' }, executor);
+  expect(executor).toHaveBeenCalledWith(expect.stringMatching(/insert into tasks/i), expect.any(Array));
+  expect(query).not.toHaveBeenCalled();
 });
 
 test('listTasks filters by owner and status', async () => {
@@ -198,7 +215,8 @@ test('applyInboundTaskUpdate reclaims a Google-side deletion', async () => {
     .mockResolvedValueOnce({ rows: [SYNCED_TASK] })
     .mockResolvedValueOnce({ rowCount: 1 });
   const r = await applyInboundTaskUpdate({ ownerId: 'owner1', providerTaskId: 'g1', incoming: { deleted: true } });
-  expect(r).toEqual({ applied: true, action: 'deleted' });
+  expect(r).toEqual({ applied: true, action: 'deleted', task: SYNCED_TASK });
+  expect(cancelPendingTaskReminders).toHaveBeenCalledWith('t1', expect.any(Function));
   expect(query.mock.calls[1][0]).toMatch(/delete from tasks/i);
 });
 
@@ -213,6 +231,33 @@ test('applyInboundTaskUpdate marks done when Google completed the task', async (
   expect(sql).toMatch(/sync_status = 'synced'/i); // 不觸發 outbound（防迴圈）
   expect(params[4]).toBe('done');
   expect(params[5]).not.toBeNull(); // completed_at
+  expect(cancelPendingTaskReminders).toHaveBeenCalledWith('t1', expect.any(Function));
+});
+
+test('inbound reopen schedules inside the same transaction and rolls back on queue failure', async () => {
+  const { applyInboundTaskUpdate } = await load();
+  const reopened = {
+    ...SYNCED_TASK,
+    status: 'open',
+    due_at: '2099-07-20T08:00:00.000Z',
+    version: 4,
+  };
+  query
+    .mockResolvedValueOnce({ rows: [{ ...SYNCED_TASK, status: 'done' }] })
+    .mockResolvedValueOnce({ rows: [reopened] })
+    .mockResolvedValueOnce({ rows: [{ channel_target: { encrypted: 'target' } }] });
+  scheduleTaskReminders.mockRejectedValue(new Error('queue failed'));
+  await expect(applyInboundTaskUpdate({
+    ownerId: 'owner1',
+    providerTaskId: 'g1',
+    incoming: { status: 'needsAction', title: '買牛奶' },
+    remindersEnabled: true,
+  })).rejects.toThrow('queue failed');
+  expect(scheduleTaskReminders).toHaveBeenCalledWith(expect.objectContaining({
+    ownerId: 'owner1',
+    task: reopened,
+    executor: expect.any(Function),
+  }));
 });
 
 test('applyInboundTaskUpdate strips the sync marker from notes before applying', async () => {

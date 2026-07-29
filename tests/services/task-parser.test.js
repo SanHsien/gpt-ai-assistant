@@ -32,6 +32,7 @@ test('parses a title with a due date using deterministic, reproducible params', 
   expect(result.valid).toBe(true);
   expect(result.value.title).toBe('交報告');
   expect(result.value.dueAt).toBe('2026-07-20T01:00:00.000Z');
+  expect(result.value.timezone).toBe('Asia/Taipei');
   const [params] = createChatCompletion.mock.calls[0];
   expect(params.temperature).toBe(0);
   expect(params.responseFormat).toMatchObject({

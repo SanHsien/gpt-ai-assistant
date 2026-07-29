@@ -5,6 +5,7 @@ import {
 const originalModel = process.env.OPENAI_IMAGE_GENERATION_MODEL;
 const originalQuality = process.env.OPENAI_IMAGE_GENERATION_QUALITY;
 const originalTaskListLimit = process.env.TASK_LIST_LIMIT;
+const originalReminderOffsets = process.env.REMINDER_OFFSETS;
 
 afterEach(() => {
   if (originalModel === undefined) delete process.env.OPENAI_IMAGE_GENERATION_MODEL;
@@ -13,7 +14,18 @@ afterEach(() => {
   else process.env.OPENAI_IMAGE_GENERATION_QUALITY = originalQuality;
   if (originalTaskListLimit === undefined) delete process.env.TASK_LIST_LIMIT;
   else process.env.TASK_LIST_LIMIT = originalTaskListLimit;
+  if (originalReminderOffsets === undefined) delete process.env.REMINDER_OFFSETS;
+  else process.env.REMINDER_OFFSETS = originalReminderOffsets;
   jest.resetModules();
+});
+
+test('reminds one day before by default', async () => {
+  delete process.env.REMINDER_OFFSETS;
+  jest.resetModules();
+
+  const { default: config } = await import('../config/index.js');
+
+  expect(config.REMINDER_OFFSETS).toEqual([1440]);
 });
 
 test('uses a supported cost-conscious image model by default', async () => {

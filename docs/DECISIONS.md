@@ -43,7 +43,7 @@
 
 - **決定**：正式 runtime 強制 Supabase Postgres、durable webhook queue 與最新 migration preflight；移除 `APP_WEBHOOK_QUEUE`、process-memory redelivery filter、同步 fail-open、Vercel env storage 及其 access-token 設定。DB 或必要設定不可用時回 `5xx`，讓 LINE redelivery，不在未取得 durable idempotency 前執行付費工作。
 - **狀態界線**：`bot_sources` 只保存 HMAC source key、user/group 類型及啟停狀態；原始 LINE id、顯示名稱與對話不落庫。短期 prompt/history 仍可隨 instance 消失，因其不是業務真相源。
-- **Google contract**：Calendar／Tasks scopes、outbound/inbound 支援矩陣與 local-pending/stale 衝突政策成為共用可測契約。全天 Calendar inbound、recurrence exception、Google-origin 建立與 Tasks due 回收在真實 round-trip 完成前保持不支援。
+- **Google contract**：Calendar／Tasks scopes、outbound/inbound 支援矩陣與 local-pending/stale 衝突政策成為共用可測契約。Calendar inbound v3 只匯入 connected `primary` calendar 上未來、非週期且有時刻的 Google-origin 行程；baseline 與增量共用 owner-scoped mapping，修改／刪除會重排／取消 durable LINE reminders。Calendar 分頁採 owner-exclusive fencing claim 與 durable continuation：每 job 一頁、query snapshot 固定、checkpoint 與下一頁入列同 transaction，僅 final page cleanup／保存 cursor／release claim；過期接手沿用既有 snapshot，舊 token 不得寫入。現有 `calendar.events.owned` 已涵蓋使用者擁有的 primary calendar，不擴大 scope。全天、週期 series／exception、非 primary 匯入與 Tasks due 回收仍保持不支援。
 - **發布方式**：先部署 `6.0.0-rc.1` 做既有 Production 升級與集中 LINE／Google 驗收；通過後才發正式 `6.0.0`。回滾部署最後 5.x，保留向後相容的 `0018` 表，避免事故中做破壞性 schema 操作。
 
 ## 2026-07-17 — 轉為獨立 repository，保留上游 MIT attribution（歷史方案已由 2026-07-18 決策取代）

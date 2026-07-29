@@ -6,19 +6,58 @@ let authorizedRequest;
 let getCalendarAccount;
 let saveSyncToken;
 let claimAccountsForInbound;
+let claimCalendarInboundSync;
+let checkpointCalendarInboundPage;
+let resetCalendarInboundSync;
 let deleteEventByProviderId;
+let deleteInboundEventByProviderId;
+let deleteCalendarInboundEventByProviderId;
+let deleteMissingInboundEvents;
+let finalizeCalendarInboundSync;
+let reconcileInboundEventReminders;
 let applyInboundEventUpdate;
 let getDefaultReminderTime;
 let enqueueJob;
 let withTransaction;
 
-const load = async () => {
+const load = async ({ remindersEnabled = false } = {}) => {
   jest.resetModules();
+  process.env.ENABLE_REMINDERS = remindersEnabled ? 'true' : 'false';
   authorizedRequest = jest.fn();
   getCalendarAccount = jest.fn();
   saveSyncToken = jest.fn().mockResolvedValue(undefined);
   claimAccountsForInbound = jest.fn();
+  claimCalendarInboundSync = jest.fn(async (params) => {
+    const account = await getCalendarAccount(params.ownerId);
+    if (!account) return null;
+    return {
+      ...account,
+      inbound_claim_token: params.claimToken,
+      inbound_baseline_generation: account.sync_token ? null : params.baselineGeneration,
+      inbound_baseline_time_min: account.sync_token ? null : params.baselineTimeMin,
+      inbound_page_token: null,
+    };
+  });
+  checkpointCalendarInboundPage = jest.fn().mockResolvedValue(true);
+  resetCalendarInboundSync = jest.fn().mockResolvedValue(true);
   deleteEventByProviderId = jest.fn();
+  deleteInboundEventByProviderId = jest.fn().mockResolvedValue(false);
+  deleteCalendarInboundEventByProviderId = jest.fn(async ({
+    ownerId, providerEventId, inboundOnly,
+  }) => ({
+    deleted: inboundOnly
+      ? await deleteInboundEventByProviderId(ownerId, providerEventId)
+      : await deleteEventByProviderId(ownerId, providerEventId),
+    staleClaim: false,
+  }));
+  deleteMissingInboundEvents = jest.fn().mockResolvedValue(0);
+  finalizeCalendarInboundSync = jest.fn(async (params) => ({
+    completed: true,
+    removed: params.baselineGeneration
+      ? await deleteMissingInboundEvents(params.ownerId, params.baselineGeneration)
+      : 0,
+  }));
+  reconcileInboundEventReminders = jest.fn().mockResolvedValue({ scheduled: 0 });
   applyInboundEventUpdate = jest.fn().mockResolvedValue({ applied: true });
   getDefaultReminderTime = jest.fn().mockReturnValue(new Date('2030-01-01T00:00:00Z'));
   enqueueJob = jest.fn().mockResolvedValue({ id: 'j1' });
@@ -26,9 +65,22 @@ const load = async () => {
   withTransaction = jest.fn((fn) => fn(client));
   jest.doMock('../../services/google-calendar.js', () => ({ authorizedRequest }));
   jest.doMock('../../repositories/calendar-accounts.js', () => ({
-    getCalendarAccount, saveSyncToken, claimAccountsForInbound,
+    getCalendarAccount,
+    saveSyncToken,
+    claimAccountsForInbound,
+    claimCalendarInboundSync,
+    checkpointCalendarInboundPage,
+    resetCalendarInboundSync,
   }));
-  jest.doMock('../../repositories/events.js', () => ({ deleteEventByProviderId, applyInboundEventUpdate }));
+  jest.doMock('../../repositories/events.js', () => ({
+    deleteEventByProviderId,
+    deleteInboundEventByProviderId,
+    deleteCalendarInboundEventByProviderId,
+    deleteMissingInboundEvents,
+    finalizeCalendarInboundSync,
+    reconcileInboundEventReminders,
+    applyInboundEventUpdate,
+  }));
   jest.doMock('../../repositories/jobs.js', () => ({ enqueueJob }));
   jest.doMock('../../services/database.js', () => ({ withTransaction }));
   jest.doMock('../../services/reminders.js', () => ({ getDefaultReminderTime }));
@@ -41,6 +93,7 @@ afterEach(() => {
     '../../services/reminders.js']
     .forEach((mod) => jest.dontMock(mod));
   jest.resetModules();
+  delete process.env.ENABLE_REMINDERS;
 });
 
 test('pullCalendarChanges returns changed:0 when no account is linked', async () => {
@@ -50,22 +103,79 @@ test('pullCalendarChanges returns changed:0 when no account is linked', async ()
   expect(authorizedRequest).not.toHaveBeenCalled();
 });
 
-test('first pull with no sync_token only establishes a baseline, deleting nothing', async () => {
+test('a stale continuation claim is a no-op before calling Google', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: null, sync_query_version: 3,
+  });
+  claimCalendarInboundSync.mockResolvedValue(null);
+  await expect(pullCalendarChanges('o1', { claimToken: 'stale-claim' }))
+    .resolves.toEqual({ changed: 0, staleClaim: true });
+  expect(authorizedRequest).not.toHaveBeenCalled();
+});
+
+test('baseline continuation uses its persisted timeMin and pageToken snapshot', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: null, sync_query_version: 3,
+  });
+  claimCalendarInboundSync.mockResolvedValue({
+    owner_id: 'o1',
+    calendar_id: 'primary',
+    sync_token: null,
+    inbound_claim_token: 'claim-1',
+    inbound_baseline_generation: '11111111-1111-4111-8111-111111111111',
+    inbound_baseline_time_min: '2026-07-28T00:00:00.000Z',
+    inbound_page_token: 'page-2',
+  });
+  authorizedRequest.mockResolvedValue({
+    response: { data: { items: [], nextSyncToken: 'tok-final' } },
+  });
+  await pullCalendarChanges('o1', { claimToken: 'claim-1' });
+  expect(authorizedRequest.mock.calls[0][1].params).toEqual(expect.objectContaining({
+    timeMin: '2026-07-28T00:00:00.000Z',
+    pageToken: 'page-2',
+  }));
+});
+
+test('first pull imports supported existing Google-origin events before establishing a baseline', async () => {
   const { pullCalendarChanges } = await load();
   getCalendarAccount.mockResolvedValue({ owner_id: 'o1', calendar_id: 'primary', sync_token: null });
   authorizedRequest.mockResolvedValue({
-    response: { data: { items: [{ id: 'e1', status: 'confirmed' }], nextSyncToken: 'tok-1' } },
+    response: {
+      data: {
+        items: [{
+          id: 'google-origin-1',
+          status: 'confirmed',
+          summary: '既有會議',
+          updated: '2026-07-18T00:00:00Z',
+          start: { dateTime: '2099-07-20T06:00:00Z', timeZone: 'Asia/Taipei' },
+          end: { dateTime: '2099-07-20T07:00:00Z', timeZone: 'Asia/Taipei' },
+        }],
+        nextSyncToken: 'tok-1',
+      },
+    },
   });
   const result = await pullCalendarChanges('o1');
-  expect(result).toEqual({ changed: 0, baseline: true });
+  expect(result).toEqual({ changed: 1, baseline: true });
   expect(deleteEventByProviderId).not.toHaveBeenCalled();
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-1', 2);
+  expect(applyInboundEventUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    ownerId: 'o1',
+    providerEventId: 'google-origin-1',
+    allowCreate: true,
+    baselineGeneration: expect.any(String),
+    draft: expect.objectContaining({ title: '既有會議' }),
+  }));
+  expect(finalizeCalendarInboundSync).toHaveBeenCalledWith(expect.objectContaining({
+    ownerId: 'o1', nextSyncToken: 'tok-1',
+  }));
+  expect(deleteMissingInboundEvents).toHaveBeenCalledWith('o1', expect.any(String));
   // 首拉不帶 syncToken，帶 timeMin 建立基線。
   const { params } = authorizedRequest.mock.calls[0][1];
   expect(params.syncToken).toBeUndefined();
   expect(params.timeMin).toBeDefined();
   expect(params.singleEvents).toBe(false);
-  expect(params.maxResults).toBe(2500);
+  expect(params.maxResults).toBe(50);
 });
 
 test('incremental pull reclaims Google-side deletions and counts only removed rows', async () => {
@@ -79,7 +189,7 @@ test('incremental pull reclaims Google-side deletions and counts only removed ro
           { id: 'gptae2', status: 'cancelled' },
           { id: 'gptae3', status: 'confirmed' },
           { id: 'gpta-series_20260720', recurringEventId: 'gpta-series', status: 'cancelled' },
-          { id: 'unrelated', status: 'cancelled' },
+          { id: 'google-origin-deleted', status: 'cancelled' },
         ],
         nextSyncToken: 'tok-2',
       },
@@ -94,8 +204,10 @@ test('incremental pull reclaims Google-side deletions and counts only removed ro
   expect(deleteEventByProviderId).toHaveBeenCalledWith('o1', 'gptae2');
   expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'gptae3');
   expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'gpta-series_20260720');
-  expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'unrelated');
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-2', 2);
+  expect(deleteInboundEventByProviderId).toHaveBeenCalledWith('o1', 'google-origin-deleted');
+  expect(finalizeCalendarInboundSync).toHaveBeenCalledWith(expect.objectContaining({
+    ownerId: 'o1', nextSyncToken: 'tok-2',
+  }));
 });
 
 test('a 410 GONE clears the sync token so the next run rebuilds a baseline', async () => {
@@ -104,25 +216,27 @@ test('a 410 GONE clears the sync token so the next run rebuilds a baseline', asy
   authorizedRequest.mockRejectedValue(Object.assign(new Error('gone'), { response: { status: 410 } }));
   const result = await pullCalendarChanges('o1');
   expect(result).toEqual({ changed: 0, reset: true });
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', null, 2);
+  expect(resetCalendarInboundSync).toHaveBeenCalledWith('o1', expect.any(String), 3);
 });
 
-test('incremental pull follows pageToken and saves the final nextSyncToken', async () => {
+test('incremental pull checkpoints one page and queues a durable continuation', async () => {
   const { pullCalendarChanges } = await load();
   getCalendarAccount.mockResolvedValue({ owner_id: 'o1', calendar_id: 'primary', sync_token: 'tok-1' });
-  authorizedRequest
-    .mockResolvedValueOnce({
-      response: { data: { items: [{ id: 'gptae1', status: 'cancelled' }], nextPageToken: 'p2' } },
-    })
-    .mockResolvedValueOnce({
-      response: { data: { items: [{ id: 'gptae2', status: 'cancelled' }], nextSyncToken: 'tok-final' } },
-    });
+  authorizedRequest.mockResolvedValue({
+    response: { data: { items: [{ id: 'gptae1', status: 'cancelled' }], nextPageToken: 'p2' } },
+  });
   deleteEventByProviderId.mockResolvedValue(true);
   const result = await pullCalendarChanges('o1');
-  expect(result).toEqual({ changed: 2 });
-  expect(authorizedRequest).toHaveBeenCalledTimes(2);
-  expect(authorizedRequest.mock.calls[1][1].params.pageToken).toBe('p2');
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-final', 2);
+  expect(result).toEqual({ changed: 1, continued: true });
+  expect(authorizedRequest).toHaveBeenCalledTimes(1);
+  expect(checkpointCalendarInboundPage).toHaveBeenCalledWith(
+    'o1', expect.any(String), 'p2', expect.any(String), expect.any(Function),
+  );
+  expect(enqueueJob).toHaveBeenCalledWith(expect.objectContaining({
+    kind: 'google-calendar-inbound',
+    payload: { ownerId: 'o1', claimToken: expect.any(String) },
+  }), expect.any(Function));
+  expect(finalizeCalendarInboundSync).not.toHaveBeenCalled();
 });
 
 test('fromGoogleEvent maps a timed event and skips all-day / recurring / cancelled / bare', async () => {
@@ -164,13 +278,13 @@ test('fromGoogleEvent maps a timed event and skips all-day / recurring / cancell
   })).toBeNull();
 });
 
-test('v1 expanded-instance cursor is cleared before rebuilding a series-mode baseline', async () => {
+test('older cursor versions are cleared before rebuilding the Google-origin baseline', async () => {
   const { pullCalendarChanges } = await load();
   getCalendarAccount.mockResolvedValue({
-    owner_id: 'o1', calendar_id: 'primary', sync_token: 'v1-token', sync_query_version: 1,
+    owner_id: 'o1', calendar_id: 'primary', sync_token: 'v2-token', sync_query_version: 2,
   });
   await expect(pullCalendarChanges('o1')).resolves.toEqual({ changed: 0, reset: true });
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', null, 2);
+  expect(saveSyncToken).toHaveBeenCalledWith('o1', null, 3);
   expect(authorizedRequest).not.toHaveBeenCalled();
 });
 
@@ -203,7 +317,205 @@ test('incremental pull applies external modifications and counts applied ones', 
     providerEventId: 'gpta1',
     providerUpdatedAt: '2026-07-18T00:00:00Z',
     draft: expect.objectContaining({ title: '改期會議' }),
+    allowCreate: false,
   }));
+});
+
+test('incremental pull imports a new future Google-origin event', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: 'tok-1', sync_query_version: 3,
+  });
+  authorizedRequest.mockResolvedValue({
+    response: {
+      data: {
+        items: [{
+          id: 'external-1',
+          status: 'confirmed',
+          summary: '外部新增',
+          updated: '2026-07-18T00:00:00Z',
+          start: { dateTime: '2099-07-21T06:00:00Z', timeZone: 'Asia/Taipei' },
+        }],
+        nextSyncToken: 'tok-2',
+      },
+    },
+  });
+  const result = await pullCalendarChanges('o1');
+  expect(result).toEqual({ changed: 1 });
+  expect(applyInboundEventUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    providerEventId: 'external-1',
+    allowCreate: true,
+  }));
+});
+
+test('does not import Google-origin events outside the safe slice', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'secondary', sync_token: null, sync_query_version: 3,
+  });
+  authorizedRequest.mockResolvedValue({
+    response: {
+      data: {
+        items: [
+          {
+            id: 'external-secondary',
+            status: 'confirmed',
+            summary: 'secondary',
+            start: { dateTime: '2099-07-21T06:00:00Z' },
+          },
+          {
+            id: 'external-all-day',
+            status: 'confirmed',
+            summary: 'all day',
+            start: { date: '2099-07-21' },
+          },
+          {
+            id: 'external-recurring',
+            status: 'confirmed',
+            summary: 'weekly',
+            start: { dateTime: '2099-07-21T06:00:00Z' },
+            recurrence: ['RRULE:FREQ=WEEKLY'],
+          },
+          {
+            id: 'gptaunknown',
+            status: 'confirmed',
+            summary: 'managed without local mapping',
+            start: { dateTime: '2099-07-21T06:00:00Z' },
+          },
+        ],
+        nextSyncToken: 'tok-2',
+      },
+    },
+  });
+  applyInboundEventUpdate.mockResolvedValue({ applied: false, reason: 'not_found' });
+  const result = await pullCalendarChanges('o1');
+  expect(result).toEqual({ changed: 0, baseline: true });
+  expect(applyInboundEventUpdate).toHaveBeenCalledTimes(1);
+  expect(applyInboundEventUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    providerEventId: 'gptaunknown',
+    allowCreate: false,
+  }));
+});
+
+test('unsupported Google-origin modifications remove only inbound mappings', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: 'tok-1', sync_query_version: 3,
+  });
+  authorizedRequest.mockResolvedValue({
+    response: {
+      data: {
+        items: [{
+          id: 'external-1', status: 'confirmed', summary: '改為全天',
+          start: { date: '2099-07-21' },
+        }, {
+          id: 'gpta1', status: 'confirmed', summary: 'bot recurring',
+          start: { dateTime: '2099-07-21T06:00:00Z' }, recurrence: ['RRULE:FREQ=WEEKLY'],
+        }],
+        nextSyncToken: 'tok-2',
+      },
+    },
+  });
+  deleteInboundEventByProviderId.mockResolvedValue(true);
+  await expect(pullCalendarChanges('o1')).resolves.toEqual({ changed: 1 });
+  expect(deleteInboundEventByProviderId).toHaveBeenCalledWith('o1', 'external-1');
+  expect(deleteInboundEventByProviderId).not.toHaveBeenCalledWith('o1', 'gpta1');
+  expect(deleteEventByProviderId).not.toHaveBeenCalledWith('o1', 'gpta1');
+});
+
+test('does not save a baseline cursor when local apply fails', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: null, sync_query_version: 3,
+  });
+  authorizedRequest.mockResolvedValue({
+    response: {
+      data: {
+        items: [{
+          id: 'external-1', status: 'confirmed', summary: 'x',
+          start: { dateTime: '2099-07-21T06:00:00Z' },
+        }],
+        nextSyncToken: 'tok-2',
+      },
+    },
+  });
+  applyInboundEventUpdate.mockRejectedValue(new Error('local transaction failed'));
+  await expect(pullCalendarChanges('o1')).rejects.toThrow('local transaction failed');
+  expect(saveSyncToken).not.toHaveBeenCalled();
+  expect(deleteMissingInboundEvents).not.toHaveBeenCalled();
+});
+
+test('a failed continuation retries the same persisted page without advancing', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: 'tok-1', sync_query_version: 3,
+  });
+  claimCalendarInboundSync.mockResolvedValue({
+    owner_id: 'o1',
+    calendar_id: 'primary',
+    sync_token: 'tok-1',
+    inbound_claim_token: 'claim-1',
+    inbound_page_token: 'p2',
+  });
+  authorizedRequest.mockResolvedValue({
+    response: {
+      data: {
+        items: [{
+          id: 'external-2', status: 'confirmed', summary: 'two',
+          start: { dateTime: '2099-07-22T06:00:00Z' },
+        }],
+        nextSyncToken: 'tok-2',
+      },
+    },
+  });
+  applyInboundEventUpdate.mockRejectedValue(new Error('page two failed'));
+  await expect(pullCalendarChanges('o1', { claimToken: 'claim-1' }))
+    .rejects.toThrow('page two failed');
+  expect(authorizedRequest.mock.calls[0][1].params.pageToken).toBe('p2');
+  expect(checkpointCalendarInboundPage).not.toHaveBeenCalled();
+  expect(finalizeCalendarInboundSync).not.toHaveBeenCalled();
+});
+
+test('a later inbound poll backfills imported events after reminders become enabled', async () => {
+  const { pullCalendarChanges } = await load({ remindersEnabled: true });
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: 'tok-1', sync_query_version: 3,
+  });
+  authorizedRequest.mockResolvedValue({
+    response: { data: { items: [], nextSyncToken: 'tok-2' } },
+  });
+  await pullCalendarChanges('o1');
+  expect(reconcileInboundEventReminders).toHaveBeenCalledWith('o1', {
+    claimToken: expect.any(String),
+  });
+});
+
+test('baseline cleanup failure does not advance the cursor', async () => {
+  const { pullCalendarChanges } = await load();
+  getCalendarAccount.mockResolvedValue({
+    owner_id: 'o1', calendar_id: 'primary', sync_token: null, sync_query_version: 3,
+  });
+  authorizedRequest.mockResolvedValue({
+    response: { data: { items: [], nextSyncToken: 'tok-2' } },
+  });
+  deleteMissingInboundEvents.mockRejectedValue(new Error('cleanup failed'));
+  await expect(pullCalendarChanges('o1')).rejects.toThrow('cleanup failed');
+  expect(saveSyncToken).not.toHaveBeenCalled();
+});
+
+test('mapWithConcurrency never exceeds the configured worker count', async () => {
+  const { mapWithConcurrency } = await load();
+  let active = 0;
+  let peak = 0;
+  const results = await mapWithConcurrency([1, 2, 3, 4, 5, 6, 7], async (value) => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => { setTimeout(resolve, 5); });
+    active -= 1;
+    return value * 2;
+  }, 3);
+  expect(peak).toBe(3);
+  expect(results).toEqual([2, 4, 6, 8, 10, 12, 14]);
 });
 
 test('incremental pull does not count a modification the policy rejected', async () => {
@@ -241,5 +553,7 @@ test('handleCalendarInbound pulls changes for the job owner', async () => {
   authorizedRequest.mockResolvedValue({ response: { data: { items: [], nextSyncToken: 'tok-2' } } });
   await handleCalendarInbound({ payload: { ownerId: 'o1' } });
   expect(authorizedRequest).toHaveBeenCalled();
-  expect(saveSyncToken).toHaveBeenCalledWith('o1', 'tok-2', 2);
+  expect(finalizeCalendarInboundSync).toHaveBeenCalledWith(expect.objectContaining({
+    ownerId: 'o1', nextSyncToken: 'tok-2',
+  }));
 });

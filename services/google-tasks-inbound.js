@@ -54,6 +54,7 @@ export const pullTaskChanges = async (ownerId, updatedMin = null) => {
         title: item.title,
         notes: item.notes ?? null,
       },
+      remindersEnabled: config.ENABLE_REMINDERS,
     })));
     changed += flags.filter((r) => r.applied).length;
     pageToken = data.nextPageToken;

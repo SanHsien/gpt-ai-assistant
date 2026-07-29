@@ -12,6 +12,7 @@ let getHandlers;
 let completeGoogleAuthorization;
 let isGoogleCalendarConfigured;
 let ensureRuntimeReady;
+let backfillTaskReminders;
 
 const load = async ({
   remindersEnabled = false,
@@ -29,6 +30,7 @@ const load = async ({
   completeGoogleAuthorization = jest.fn().mockResolvedValue({ ownerId: 'u1', backfillCount: 1 });
   isGoogleCalendarConfigured = jest.fn().mockReturnValue(true);
   ensureRuntimeReady = jest.fn().mockResolvedValue(undefined);
+  backfillTaskReminders = jest.fn().mockResolvedValue({ scheduled: 0 });
 
   const express = jest.fn(() => ({
     use: jest.fn(),
@@ -90,9 +92,11 @@ const load = async ({
       GOOGLE_TASKS_INBOUND: 'google-tasks-inbound',
       GOOGLE_TASKS_SYNC: 'google-tasks-sync',
       LINE_REMINDER: 'line-reminder',
+      TASK_REMINDER: 'task-reminder',
       WEATHER_DAILY: 'weather-daily',
     },
   }));
+  jest.doMock('../../services/task-reminder-scheduling.js', () => ({ backfillTaskReminders }));
 
   await import('../../api/index.js');
 };
@@ -223,6 +227,7 @@ test('minute cron drains reminders and Google Calendar delivery jobs', async () 
     maxDurationMs: 45000,
     kinds: [
       'line-reminder',
+      'task-reminder',
       'google-calendar-sync',
       'google-calendar-status',
       'weather-daily',
@@ -231,5 +236,6 @@ test('minute cron drains reminders and Google Calendar delivery jobs', async () 
       'google-tasks-inbound',
     ],
   });
+  expect(backfillTaskReminders).toHaveBeenCalled();
   expect(res.status).toHaveBeenCalledWith(200);
 });

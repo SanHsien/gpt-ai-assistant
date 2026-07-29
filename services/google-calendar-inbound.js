@@ -1,20 +1,53 @@
+import crypto from 'node:crypto';
 import config from '../config/index.js';
 import { JOB_KINDS } from '../constants/jobs.js';
 import { enqueueJob } from '../repositories/jobs.js';
 import {
+  checkpointCalendarInboundPage,
+  claimCalendarInboundSync,
   claimAccountsForInbound,
   getCalendarAccount,
+  resetCalendarInboundSync,
   saveSyncToken,
 } from '../repositories/calendar-accounts.js';
-import { applyInboundEventUpdate, deleteEventByProviderId } from '../repositories/events.js';
+import {
+  applyInboundEventUpdate,
+  deleteCalendarInboundEventByProviderId,
+  finalizeCalendarInboundSync,
+  reconcileInboundEventReminders,
+} from '../repositories/events.js';
 import { validateEventDraft } from '../schemas/event-draft.js';
 import { withTransaction } from './database.js';
 import { authorizedRequest } from './google-calendar.js';
 import { getDefaultReminderTime } from './reminders.js';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
-const SYNC_QUERY_VERSION = 2;
+const SYNC_QUERY_VERSION = 3;
 const isManagedEvent = (item) => item?.id?.startsWith('gpta') && !item.recurringEventId;
+const isPrimaryCalendar = (account) => (
+  (account.calendar_id || config.GOOGLE_CALENDAR_ID) === 'primary'
+);
+const isFutureDraft = (draft) => new Date(draft.start).getTime() > Date.now();
+
+export const mapWithConcurrency = async (
+  items,
+  worker,
+  concurrency = Math.max(1, config.DATABASE_POOL_MAX),
+) => {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const runNext = async () => {
+    const index = cursor;
+    cursor += 1;
+    if (index >= items.length) return;
+    results[index] = await worker(items[index], index);
+    await runNext();
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(items.length, concurrency) }, () => runNext()),
+  );
+  return results;
+};
 
 /**
  * Google Calendar event → 本地 event draft（反向 toGoogleEvent）。
@@ -45,95 +78,192 @@ export const fromGoogleEvent = (item) => {
 };
 
 /**
- * 從 Google Calendar 拉增量變更（sync token 輪詢）：外部刪除回收，並吸收 bot 所建
- * 非週期 timed 行程的外部修改。提醒 job 由事件存在性／版本檢查安全收斂。
+ * 從 Google Calendar 拉增量變更（sync token 輪詢）：外部刪除回收，吸收 bot 所建
+ * 非週期 timed 行程的外部修改，並匯入 primary calendar 上安全範圍內的 Google-origin
+ * 未來行程。提醒 job 由事件存在性／版本檢查安全收斂。
  *
- * - 首次（無 sync_token）：只走一次 list 建立基線、存 nextSyncToken，不處理任何項目
- *   （首拉會回傳所有既存事件，都不是「刪除」，本地已有，無需動作）。
- * - 增量（有 sync_token）：處理 cancelled 與既有本機映射行程的修改。
+ * - 首次（無 sync_token）：匯入既存的未來、timed、non-recurring Google-origin 行程，
+ *   同時吸收已有 mapping 的修改，全部成功後才存 nextSyncToken。
+ * - 增量（有 sync_token）：處理 cancelled、修改與新建。
  * - 410 GONE：sync token 失效 → 清掉 token，下次重新建立基線。
  *
  * @param {string} ownerId
  * @returns {Promise<{ changed: number, reset?: boolean, baseline?: boolean }>}
  */
-export const pullCalendarChanges = async (ownerId) => {
+export const pullCalendarChanges = async (
+  ownerId,
+  { claimToken: requestedClaimToken = null, now = new Date() } = {},
+) => {
   const account = await getCalendarAccount(ownerId);
   if (!account) return { changed: 0 };
 
   // v1 使用 singleEvents=true，無截止日的週期行程會展開成大量 occurrence。
-  // 0019 將既有帳號標成 v1；先清游標，下一輪以系列模式重建 baseline。
+  // v3 新增 Google-origin baseline import；舊游標先清除，下一輪以系列模式重建。
   if ((account.sync_query_version ?? SYNC_QUERY_VERSION) !== SYNC_QUERY_VERSION) {
     await saveSyncToken(ownerId, null, SYNC_QUERY_VERSION);
     return { changed: 0, reset: true };
   }
 
-  const calendarId = encodeURIComponent(account.calendar_id || config.GOOGLE_CALENDAR_ID);
-  const incremental = Boolean(account.sync_token);
-  const baseParams = incremental
-    ? { syncToken: account.sync_token, singleEvents: false }
-    // 首拉：限縮到「現在起」，避免拉整段歷史；showDeleted 對增量才有意義。
-    : { timeMin: new Date().toISOString(), singleEvents: false };
+  const claimedAt = now.toISOString();
+  const claim = await claimCalendarInboundSync({
+    ownerId,
+    requestedClaimToken,
+    claimToken: crypto.randomUUID(),
+    baselineGeneration: crypto.randomUUID(),
+    baselineTimeMin: claimedAt,
+    staleBefore: new Date(
+      now.getTime() - Math.max(30, config.WORKER_LEASE_SECONDS) * 1000,
+    ).toISOString(),
+    claimedAt,
+  });
+  if (!claim) {
+    return requestedClaimToken
+      ? { changed: 0, staleClaim: true }
+      : { changed: 0, busy: true };
+  }
 
-  let pageToken;
-  let nextSyncToken;
+  const activeClaimToken = claim.inbound_claim_token;
+  const calendarId = encodeURIComponent(claim.calendar_id || config.GOOGLE_CALENDAR_ID);
+  const incremental = Boolean(claim.sync_token);
+  const primary = isPrimaryCalendar(claim);
+  const baselineGeneration = !incremental && primary
+    ? claim.inbound_baseline_generation
+    : null;
+  const baseParams = incremental
+    ? { syncToken: claim.sync_token, singleEvents: false }
+    : {
+      timeMin: new Date(claim.inbound_baseline_time_min).toISOString(),
+      singleEvents: false,
+    };
   let changed = 0;
 
   try {
-    do {
-      // eslint-disable-next-line no-await-in-loop
-      const { response } = await authorizedRequest(ownerId, {
-        method: 'GET',
-        url: `${CALENDAR_API}/calendars/${calendarId}/events`,
-        params: {
-          ...baseParams,
-          showDeleted: true,
-          // Calendar API 上限為 2500；系列模式不展開 recurring instances，放大頁面可避免
-          // 大型日曆因多次 request 累積超過 serverless 執行時限。
-          maxResults: 2500,
-          ...(pageToken ? { pageToken } : {}),
-        },
-      });
-      const data = response.data || {};
+    const { response } = await authorizedRequest(ownerId, {
+      method: 'GET',
+      url: `${CALENDAR_API}/calendars/${calendarId}/events`,
+      params: {
+        ...baseParams,
+        showDeleted: true,
+        maxResults: config.CALENDAR_INBOUND_PAGE_SIZE,
+        ...(claim.inbound_page_token ? { pageToken: claim.inbound_page_token } : {}),
+      },
+    });
+    const data = response.data || {};
+    const items = data.items || [];
+    const cancelled = incremental
+      ? items.filter((item) => (
+        item.status === 'cancelled'
+        && !item.recurringEventId
+        && (primary || isManagedEvent(item))
+      ))
+      : [];
+    const removedResults = await mapWithConcurrency(cancelled, (item) => (
+      deleteCalendarInboundEventByProviderId({
+        ownerId,
+        providerEventId: item.id,
+        claimToken: activeClaimToken,
+        inboundOnly: !isManagedEvent(item),
+      })
+    ));
+    if (removedResults.some((result) => result.staleClaim)) {
+      return { changed: 0, staleClaim: true };
+    }
+    changed += removedResults.filter((result) => result.deleted).length;
 
-      if (incremental) {
-        const items = (data.items || []).filter(isManagedEvent);
-        // 外部刪除／取消 → 回收本地事件列。
-        const cancelled = items.filter((item) => item.status === 'cancelled');
-        // eslint-disable-next-line no-await-in-loop
-        const removedFlags = await Promise.all(
-          cancelled.map((item) => deleteEventByProviderId(ownerId, item.id)),
-        );
-        changed += removedFlags.filter(Boolean).length;
-
-        // 外部修改 → 套用到本地（限非週期 timed 行程；衝突政策見 applyInboundEventUpdate）。
-        const modified = items.filter((item) => item.status !== 'cancelled');
-        // eslint-disable-next-line no-await-in-loop
-        const appliedFlags = await Promise.all(modified.map(async (item) => {
-          const draft = fromGoogleEvent(item);
-          if (!draft) return false;
-          const result = await applyInboundEventUpdate({
+    const modified = items.filter((item) => (
+      item.status !== 'cancelled'
+      && (primary || isManagedEvent(item))
+    ));
+    const appliedResults = await mapWithConcurrency(modified, async (item) => {
+      const draft = fromGoogleEvent(item);
+      if (!draft) {
+        if (primary && !isManagedEvent(item)) {
+          return deleteCalendarInboundEventByProviderId({
             ownerId,
             providerEventId: item.id,
-            draft,
-            providerUpdatedAt: item.updated || null,
-            remindAt: getDefaultReminderTime(draft),
-            remindersEnabled: config.ENABLE_REMINDERS,
+            claimToken: activeClaimToken,
+            inboundOnly: true,
           });
-          return result.applied;
-        }));
-        changed += appliedFlags.filter(Boolean).length;
+        }
+        return { applied: false };
       }
+      const allowCreate = primary && !isManagedEvent(item) && isFutureDraft(draft);
+      return applyInboundEventUpdate({
+        ownerId,
+        providerEventId: item.id,
+        draft,
+        providerUpdatedAt: item.updated || null,
+        remindAt: getDefaultReminderTime(draft),
+        remindersEnabled: config.ENABLE_REMINDERS,
+        allowCreate,
+        createTimezone: data.timeZone || config.SCHEDULE_DEFAULT_TIMEZONE,
+        baselineGeneration: !isManagedEvent(item) ? baselineGeneration : null,
+        claimToken: activeClaimToken,
+      });
+    });
+    if (appliedResults.some((result) => result.staleClaim || result.reason === 'stale_claim')) {
+      return { changed: 0, staleClaim: true };
+    }
+    changed += appliedResults.filter((result) => result.applied || result.deleted).length;
 
-      pageToken = data.nextPageToken;
-      nextSyncToken = data.nextSyncToken || nextSyncToken;
-    } while (pageToken);
+    if (data.nextPageToken) {
+      const queued = await withTransaction(async (client) => {
+        const executor = client.query.bind(client);
+        const checkpointed = await checkpointCalendarInboundPage(
+          ownerId,
+          activeClaimToken,
+          data.nextPageToken,
+          new Date().toISOString(),
+          executor,
+        );
+        if (!checkpointed) return false;
+        const pageHash = crypto.createHash('sha256')
+          .update(data.nextPageToken)
+          .digest('hex')
+          .slice(0, 20);
+        await enqueueJob({
+          kind: JOB_KINDS.GOOGLE_CALENDAR_INBOUND,
+          payload: { ownerId, claimToken: activeClaimToken },
+          idempotencyKey: `calendar-inbound-page:${ownerId}:${activeClaimToken}:${pageHash}`,
+          maxAttempts: config.WORKER_MAX_ATTEMPTS,
+        }, executor);
+        return true;
+      });
+      if (!queued) return { changed: 0, staleClaim: true };
+      return incremental
+        ? { changed, continued: true }
+        : { changed, baseline: true, continued: true };
+    }
 
-    if (nextSyncToken) await saveSyncToken(ownerId, nextSyncToken, SYNC_QUERY_VERSION);
+    if (primary && config.ENABLE_REMINDERS) {
+      const reconciled = await reconcileInboundEventReminders(ownerId, {
+        claimToken: activeClaimToken,
+      });
+      if (reconciled.staleClaim) return { changed: 0, staleClaim: true };
+    }
+    if (!data.nextSyncToken) {
+      throw new Error('Google Calendar final page did not return nextSyncToken');
+    }
+    const finalized = await finalizeCalendarInboundSync({
+      ownerId,
+      claimToken: activeClaimToken,
+      nextSyncToken: data.nextSyncToken,
+      baselineGeneration,
+      queryVersion: SYNC_QUERY_VERSION,
+    });
+    if (!finalized.completed) return { changed: 0, staleClaim: true };
+    changed += finalized.removed;
     return incremental ? { changed } : { changed, baseline: true };
   } catch (err) {
     if (err.response?.status === 410) {
-      await saveSyncToken(ownerId, null, SYNC_QUERY_VERSION);
-      return { changed, reset: true };
+      const reset = await resetCalendarInboundSync(
+        ownerId,
+        activeClaimToken,
+        SYNC_QUERY_VERSION,
+      );
+      return reset
+        ? { changed, reset: true }
+        : { changed: 0, staleClaim: true };
     }
     throw err;
   }
@@ -171,9 +301,9 @@ export const enqueueDueCalendarInbound = async ({
  * @param {Object} job
  */
 export const handleCalendarInbound = async (job) => {
-  const { ownerId } = job.payload || {};
+  const { ownerId, claimToken } = job.payload || {};
   if (!ownerId) return;
-  await pullCalendarChanges(ownerId);
+  await pullCalendarChanges(ownerId, { claimToken });
 };
 
 export default { pullCalendarChanges, enqueueDueCalendarInbound, handleCalendarInbound };

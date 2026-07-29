@@ -79,6 +79,109 @@ test('deleteCalendarAccount removes the owner row and reports if any', async () 
   expect(await deleteCalendarAccount('owner-2')).toBe(false);
 });
 
+test('saveSyncToken defaults to the Google-origin baseline query version', async () => {
+  const { saveSyncToken } = await load();
+  query.mockResolvedValue({ rowCount: 1 });
+  await saveSyncToken('owner-1', 'token-3');
+  expect(query.mock.calls[0][1]).toEqual(['owner-1', 'token-3', 3]);
+});
+
+test('Calendar inbound allows only one fresh owner claim at a time', async () => {
+  const { claimCalendarInboundSync } = await load();
+  client.query
+    .mockResolvedValueOnce({
+      rows: [{
+        owner_id: 'u1',
+        calendar_id: 'primary',
+        sync_token: null,
+        inbound_claim_token: null,
+      }],
+    })
+    .mockResolvedValueOnce({
+      rows: [{
+        owner_id: 'u1',
+        inbound_claim_token: 'claim-a',
+        inbound_baseline_generation: 'generation-a',
+        inbound_baseline_time_min: '2026-07-29T00:00:00Z',
+      }],
+    });
+  await expect(claimCalendarInboundSync({
+    ownerId: 'u1',
+    claimToken: 'claim-a',
+    baselineGeneration: 'generation-a',
+    baselineTimeMin: '2026-07-29T00:00:00Z',
+    staleBefore: '2026-07-29T00:04:00Z',
+    claimedAt: '2026-07-29T00:05:00Z',
+  })).resolves.toEqual(expect.objectContaining({ inbound_claim_token: 'claim-a' }));
+
+  client.query.mockReset();
+  client.query.mockResolvedValueOnce({
+    rows: [{
+      owner_id: 'u1',
+      sync_token: null,
+      inbound_claim_token: 'claim-a',
+      inbound_claimed_at: '2026-07-29T00:05:00Z',
+    }],
+  });
+  await expect(claimCalendarInboundSync({
+    ownerId: 'u1',
+    claimToken: 'claim-b',
+    baselineGeneration: 'generation-b',
+    baselineTimeMin: '2026-07-29T00:06:00Z',
+    staleBefore: '2026-07-29T00:04:00Z',
+    claimedAt: '2026-07-29T00:06:00Z',
+  })).resolves.toBeNull();
+  expect(client.query).toHaveBeenCalledTimes(1);
+});
+
+test('Calendar inbound stale takeover preserves its query snapshot and rejects the old token', async () => {
+  const { claimCalendarInboundSync } = await load();
+  const persisted = {
+    owner_id: 'u1',
+    calendar_id: 'primary',
+    sync_token: null,
+    inbound_claim_token: 'claim-old',
+    inbound_claimed_at: '2026-07-29T00:00:00Z',
+    inbound_baseline_generation: 'generation-old',
+    inbound_baseline_time_min: '2026-07-28T23:00:00Z',
+    inbound_page_token: 'page-7',
+  };
+  client.query
+    .mockResolvedValueOnce({ rows: [persisted] })
+    .mockResolvedValueOnce({ rows: [{ ...persisted, inbound_claim_token: 'claim-new' }] });
+  await claimCalendarInboundSync({
+    ownerId: 'u1',
+    claimToken: 'claim-new',
+    baselineGeneration: 'generation-new',
+    baselineTimeMin: '2026-07-29T00:10:00Z',
+    staleBefore: '2026-07-29T00:05:00Z',
+    claimedAt: '2026-07-29T00:10:00Z',
+  });
+  expect(client.query.mock.calls[1][1]).toEqual([
+    'u1',
+    'claim-new',
+    '2026-07-29T00:10:00Z',
+    'generation-old',
+    '2026-07-28T23:00:00Z',
+    'page-7',
+  ]);
+
+  client.query.mockReset();
+  client.query.mockResolvedValueOnce({
+    rows: [{ ...persisted, inbound_claim_token: 'claim-new' }],
+  });
+  await expect(claimCalendarInboundSync({
+    ownerId: 'u1',
+    requestedClaimToken: 'claim-old',
+    claimToken: 'claim-old-refresh',
+    baselineGeneration: 'ignored',
+    baselineTimeMin: '2026-07-29T00:10:00Z',
+    staleBefore: '2026-07-29T00:05:00Z',
+    claimedAt: '2026-07-29T00:10:00Z',
+  })).resolves.toBeNull();
+  expect(client.query).toHaveBeenCalledTimes(1);
+});
+
 test('Tasks inbound leases a poll and commits its watermark only for the same claim', async () => {
   const { claimAccountsForTasksInbound, completeTasksInboundClaim } = await load();
   query.mockResolvedValueOnce({ rows: [{ owner_id: 'u1', prev: null }] });

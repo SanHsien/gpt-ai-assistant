@@ -106,13 +106,121 @@ export const consumeOAuthState = async (state) => withTransaction(async (client)
  * @param {number} [queryVersion]
  * @returns {Promise<void>}
  */
-export const saveSyncToken = async (ownerId, token, queryVersion = 2) => {
+export const saveSyncToken = async (ownerId, token, queryVersion = 3) => {
   await query(
     `UPDATE calendar_accounts
      SET sync_token = $2, sync_query_version = $3, updated_at = now()
      WHERE owner_id = $1`,
     [ownerId, token, queryVersion],
   );
+};
+
+/**
+ * Claim one durable Calendar inbound page stream. A continuation must present
+ * its current claim token; a poll without one may only take an empty or stale
+ * claim. Stale takeover preserves the persisted query snapshot and page token.
+ */
+export const claimCalendarInboundSync = async ({
+  ownerId,
+  requestedClaimToken = null,
+  claimToken,
+  baselineGeneration,
+  baselineTimeMin,
+  staleBefore,
+  claimedAt,
+}) => withTransaction(async (client) => {
+  const locked = await client.query(
+    `SELECT owner_id, calendar_id, sync_token, sync_query_version,
+            inbound_claim_token, inbound_claimed_at,
+            inbound_baseline_generation, inbound_baseline_time_min,
+            inbound_page_token
+     FROM calendar_accounts
+     WHERE owner_id = $1
+     FOR UPDATE`,
+    [ownerId],
+  );
+  const row = locked.rows[0];
+  if (!row) return null;
+
+  if (requestedClaimToken) {
+    if (row.inbound_claim_token !== requestedClaimToken) return null;
+  } else if (
+    row.inbound_claim_token
+    && row.inbound_claimed_at
+    && new Date(row.inbound_claimed_at).getTime() > new Date(staleBefore).getTime()
+  ) {
+    return null;
+  }
+
+  const continuing = Boolean(row.inbound_claim_token);
+  const effectiveClaimToken = requestedClaimToken
+    ? row.inbound_claim_token
+    : claimToken;
+  const generation = continuing
+    ? row.inbound_baseline_generation
+    : (!row.sync_token ? baselineGeneration : null);
+  const timeMin = continuing
+    ? row.inbound_baseline_time_min
+    : (!row.sync_token ? baselineTimeMin : null);
+  const result = await client.query(
+    `UPDATE calendar_accounts
+     SET inbound_claim_token = $2,
+         inbound_claimed_at = $3,
+         inbound_baseline_generation = $4,
+         inbound_baseline_time_min = $5,
+         inbound_page_token = $6,
+         updated_at = now()
+     WHERE owner_id = $1
+     RETURNING owner_id, calendar_id, sync_token, sync_query_version,
+               inbound_claim_token, inbound_claimed_at,
+               inbound_baseline_generation, inbound_baseline_time_min,
+               inbound_page_token`,
+    [
+      ownerId,
+      effectiveClaimToken,
+      claimedAt,
+      generation,
+      timeMin,
+      continuing ? row.inbound_page_token : null,
+    ],
+  );
+  return result.rows[0] || null;
+});
+
+export const checkpointCalendarInboundPage = async (
+  ownerId,
+  claimToken,
+  nextPageToken,
+  claimedAt,
+  executor = query,
+) => {
+  const result = await executor(
+    `UPDATE calendar_accounts
+     SET inbound_page_token = $3, inbound_claimed_at = $4, updated_at = now()
+     WHERE owner_id = $1 AND inbound_claim_token = $2
+     RETURNING owner_id`,
+    [ownerId, claimToken, nextPageToken, claimedAt],
+  );
+  return result.rowCount > 0;
+};
+
+export const resetCalendarInboundSync = async (
+  ownerId,
+  claimToken,
+  queryVersion,
+  executor = query,
+) => {
+  const result = await executor(
+    `UPDATE calendar_accounts
+     SET sync_token = null, sync_query_version = $3,
+         inbound_claim_token = null, inbound_claimed_at = null,
+         inbound_baseline_generation = null, inbound_baseline_time_min = null,
+         inbound_page_token = null, updated_at = now()
+     WHERE owner_id = $1 AND inbound_claim_token = $2
+     RETURNING owner_id`,
+    [ownerId, claimToken, queryVersion],
+  );
+  return result.rowCount > 0;
 };
 
 /**
@@ -196,6 +304,9 @@ export default {
   hasCalendarAccount,
   saveCalendarAccount,
   saveSyncToken,
+  claimCalendarInboundSync,
+  checkpointCalendarInboundPage,
+  resetCalendarInboundSync,
   claimAccountsForInbound,
   claimAccountsForTasksInbound,
   completeTasksInboundClaim,

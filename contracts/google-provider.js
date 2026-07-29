@@ -9,7 +9,12 @@ export const GOOGLE_PROVIDER_CONTRACT = Object.freeze({
     inbound: Object.freeze({
       updateTimedNonRecurring: true,
       deleteMapped: true,
-      createFromGoogle: false,
+      createFromGoogle: Object.freeze({
+        calendar: 'primary',
+        timed: true,
+        nonRecurring: true,
+        futureOnly: true,
+      }),
       allDay: false,
       recurrenceExceptions: false,
     }),

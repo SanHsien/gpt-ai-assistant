@@ -32,8 +32,8 @@
 | 🎨 生圖 | 用文字描述請 AI 生圖（`draw`，預設 GPT Image 2） |
 | 👁️ 看圖 | 傳圖片請 AI 理解與描述（vision，預設 `gpt-4o`） |
 | 🔍 搜尋 | 透過 SerpAPI 上網查資料（`search`，需 `SERPAPI_API_KEY`） |
-| 🗓️ 行程與提醒 | 用一句話記行程（`記行程 明天下午三點看診`、`行程 5分鐘後的測試通知`，或直接輸入 `7/20 下午三點牙醫回診`）；模糊時間會先追問，完整草稿確認後才寫入。支援星期解消、`修改行程`、衝突警告、到點提醒、完成與刪除，並可操作授權的 Google Calendar。提醒可設 `安靜時段 22-8`、`暫停提醒`／`恢復提醒` |
-| ✅ 任務 | 獨立存於 Supabase `tasks` 表的助理待辦，不會建立 Google Calendar 行程；開啟 Google Tasks outbound／inbound 並重新授權後，可雙向同步標題、備註、完成、重開與刪除（精確期限仍以本地為準）。`新增任務 重要 明天交報告 #工作` 自動解析期限、優先度與 `#標籤`；用 `我的任務` 及 `今天／明天／本週／下週／逾期／已完成／#標籤` 篩選查看，一鍵完成、重開或刪除（`ENABLE_TASKS`，預設關，需 `DATABASE_URL`） |
+| 🗓️ 行程與提醒 | 用一句話記行程（`記行程 明天下午三點看診`、`行程 5分鐘後的測試通知`，或直接輸入 `7/20 下午三點牙醫回診`）；模糊時間會先追問，完整草稿確認後才寫入。支援星期解消、`修改行程`、衝突警告、預設提前一天與到點提醒、完成與刪除，並可操作授權的 Google Calendar。開啟 inbound 後，primary calendar 內既存、非 bot 建立的未來單次 timed 行程也會匯入並由 LINE 提醒。提醒可設 `安靜時段 22-8`、`暫停提醒`／`恢復提醒` |
+| ✅ 任務 | 獨立存於 Supabase `tasks` 表的助理待辦，不會建立 Google Calendar 行程；開啟 Google Tasks outbound／inbound並重新授權後，可雙向同步標題、備註、完成、重開與刪除（精確期限仍以本地為準）。有期限任務會預設在一天前與到期時 LINE 提醒；完成、刪除與 Google 端狀態回收會同步取消或重排。`新增任務 重要 明天交報告 #工作` 自動解析期限、優先度與 `#標籤`；用 `我的任務` 及 `今天／明天／本週／下週／逾期／已完成／#標籤` 篩選查看，一鍵完成、重開或刪除（`ENABLE_TASKS`，預設關，需 `DATABASE_URL`） |
 | 🌤️ 天氣 | 查地點天氣與未來預報（`天氣 台北`）；台灣常用縣市簡稱會自動補足行政區與國家。資料來自 Open-Meteo（免費、免 API key），帶短期快取（`ENABLE_WEATHER`，預設關） |
 | 🌐 翻譯 | 翻成英文 / 日文（`translate`） |
 | 🧠 總結／分析 | `sum`（建議、安慰、鼓勵、吐槽…）與 `analyze`（文學、數學、哲學、心理、命理…等角度） |
@@ -65,13 +65,13 @@ Google Calendar 同步會在背景自動嘗試最多 3 次。成功後才回「�
    - 到專案設定填入環境變數；6.0 起 LINE、OpenAI、Supabase durable runtime 都是必要前置條件。
    - 要使用生圖功能，請在 Vercel Storage 建立並連結 Blob store。
 3. **套用資料庫與檢查 runtime**
-   - 先跑 `npm run db:migrate` 套用 `0001`–`0019`，再跑 `npm run db:preflight`。
+   - 先跑 `npm run db:migrate` 套用 `0001`–`0020`，再跑 `npm run db:preflight`。
 4. **設定 LINE webhook**
    - 部署後取得網址，把 `{你的網址}/webhook` 設為 LINE channel 的 Webhook URL 並啟用。
 5. **開始聊天**
    - 把 LINE 官方帳號加為好友，傳訊息即可。
 
-Supabase Postgres 與 `0001`–`0019` migrations 是 6.0 的必要 runtime，不再有同步或 Vercel env storage fallback；DB 不可用、缺必要環境變數或 migration 落後時，健康檢查與 webhook 會 fail closed。提醒另以 Supabase Cron 每分鐘呼叫受 secret 保護的 worker endpoint。任務與天氣分別以 `ENABLE_TASKS`、`ENABLE_WEATHER` 開啟。Google Calendar／Tasks 需建立 Web OAuth client、把憑證設為 Vercel Production Sensitive env，並在**同一個 Google Cloud project** 分別啟用 **Google Calendar API** 與 **Google Tasks API**；只有 OAuth scope 不代表 Tasks API 已啟用。請依 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#完整上線順序) 的上線檢查表操作；**先啟用 API、套 migration 與 Cron，再開 flags 並 Redeploy**。長期使用 Calendar 時應把 OAuth app 發布為 **In Production**，避免 Testing 模式的授權與 refresh token 7 天到期。開啟 `ENABLE_GOOGLE_TASKS` 後須重新傳送 `連結 Google 行事曆`，授予 Tasks scope 並自動回填既有未同步任務；若曾因 API 未啟用而失敗，先啟用 API，再重新連結，`rc.5` 會安全重排同一個 dead sync job，不建立第二筆任務。
+Supabase Postgres 與 `0001`–`0020` migrations 是 6.0 的必要 runtime，不再有同步或 Vercel env storage fallback；DB 不可用、缺必要環境變數或 migration 落後時，健康檢查與 webhook 會 fail closed。提醒另以 Supabase Cron 每分鐘呼叫受 secret 保護的 worker endpoint。任務與天氣分別以 `ENABLE_TASKS`、`ENABLE_WEATHER` 開啟。Google Calendar／Tasks 需建立 Web OAuth client、把憑證設為 Vercel Production Sensitive env，並在**同一個 Google Cloud project** 分別啟用 **Google Calendar API** 與 **Google Tasks API**；只有 OAuth scope 不代表 Tasks API 已啟用。請依 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#完整上線順序) 的上線檢查表操作；**先啟用 API、套 migration 與 Cron，再開 flags 並 Redeploy**。長期使用 Calendar 時應把 OAuth app 發布為 **In Production**，避免 Testing 模式的授權與 refresh token 7 天到期。開啟 `ENABLE_GOOGLE_TASKS` 後須重新傳送 `連結 Google 行事曆`，授予 Tasks scope 並自動回填既有未同步任務；若曾因 API 未啟用而失敗，先啟用 API，再重新連結，`rc.5` 會安全重排同一個 dead sync job，不建立第二筆任務。
 
 環境變數完整清單見 [`.env.example`](.env.example)；預設值見 `config/index.js`。
 
@@ -128,10 +128,10 @@ npm test                # jest
 - **GPT Image 支援**：預設 `gpt-image-2`，base64 圖片上傳 private Vercel Blob，再以限時 signed URL 交給 LINE；可用環境變數調整模型與品質。設定見 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。
 - **Webhook 防重送**：LINE redelivery 與重複 `webhookEventId` 不會再次處理，避免長耗時功能重複計費與回覆。
 - **Durable 基礎（Phase 0）**：Supabase Postgres、原子入列的 webhook 冪等、帶 lease fencing 的 job queue、AES-256-GCM 加密的 job payload、HMAC 化的使用者代碼。6.0 固定走 durable queue；事件缺 ID、DB 故障或 migration 落後時拒絕 ACK，交由 LINE redelivery。
-- **行程與提醒（Phase 1 + Phase 3 + Google Calendar 雙向同步）**：一句話（文字或**語音**）建行程，日期／星期與明確鐘點由程式依使用者時區解消，模糊時間以 durable 結構化草稿追問。`每天 22:40 例行檢查`、`每週五下午三點整理週報` 可直接建立週期草稿，確認卡會明列重複規則。新增與修改都先確認，row lock 與 optimistic version 防重複或過時覆蓋；重疊時先警告。Google 模式可新增、修改回寫、列表、完成與刪除；**inbound 同步**（`ENABLE_GOOGLE_CALENDAR_INBOUND`）以 sync token 輪詢回收 Google 端的刪除與 timed 行程修改，並與 LINE 提醒去重。
+- **行程與提醒（Phase 1 + Phase 3 + Google Calendar 雙向同步）**：一句話（文字或**語音**）建行程，日期／星期與明確鐘點由程式依使用者時區解消，模糊時間以 durable 結構化草稿追問。`每天 22:40 例行檢查`、`每週五下午三點整理週報` 可直接建立週期草稿，確認卡會明列重複規則。新增與修改都先確認，row lock 與 optimistic version 防重複或過時覆蓋；重疊時先警告。Google 模式可新增、修改回寫、列表、完成與刪除；**inbound 同步**（`ENABLE_GOOGLE_CALENDAR_INBOUND`）的 v3 baseline 會匯入 primary calendar 上既存、非 bot 建立的未來單次 timed 行程，增量修改／刪除會重排／取消 LINE 提醒。
 - **語音建行程（Phase 4）**：LINE 語音訊息或桌面版附加的支援音訊檔，轉錄後走與文字相同的 event-draft→確認流程，確認卡回顯「🎤 我聽到：…」讓使用者分辨聽錯／解析錯。預設上限 25 MiB，可用 `TRANSCRIPTION_MAX_BYTES` 調整；圖片建行程決定不做。
 - **任務（Phase 2 + Google Tasks 雙向同步）**：獨立保存於 Supabase 助理待辦；`ENABLE_GOOGLE_TASKS` 開啟時新增／完成／重開／刪除會同步到 Google Tasks（與 Calendar 共用 OAuth），`ENABLE_GOOGLE_TASKS_INBOUND` 開啟時 Google 端的完成／重開、刪除、標題、備註也會回收到本地（`due` 不回收，精確期限以本地為權威）。自然語言期限依使用者時區解析，支援優先度、標籤、今天／明天／本週／下週／逾期／已完成篩選、分頁，以及 owner-scoped 完成、重開與刪除。未知篩選會回覆可用選項，不會退回全部任務造成假成功。
-- **提醒偏好（Phase 3）**：到點提醒、安靜時段、暫停／恢復、陳舊提醒跳過與 retry key；`REMINDER_OFFSETS` 可設最多五個提前提醒，週期行程的每次 occurrence 也會套用。
+- **提醒偏好（Phase 3）**：行程與有期限任務預設在一天前（`REMINDER_OFFSETS=1440`）及到點提醒；可設最多五個提前量，週期行程的每次 occurrence 也會套用。共用安靜時段、暫停／恢復、陳舊提醒跳過與 retry key；無期限任務不排提醒。
 - **天氣（Phase 6）**：Open-Meteo 現況與 1–7 日預報、同名地點座標追問，以及每日訂閱推播（`ENABLE_WEATHER_PUSH`，重用同一 scheduler）。
 - **搜尋來源標註（Phase 7）**：`search` 在 AI 整理段下附「📎 來源」清單（標題／來源站／時間／連結）；來源只顯示、不進 prompt。
 - **Run trace（Phase 0）**：每次 AI 執行記錄能力／模型／token／估算成本／耗時／狀態，不含對話內容或憑證。
@@ -140,7 +140,7 @@ npm test                # jest
 ### 6.0 正式版
 
 - **`6.0.0`**：Supabase durable-only runtime、Google Calendar／Tasks 雙向契約、提醒／週期／搜尋／天氣與桌面音訊入口已完成集中 LINE／Supabase／Google 驗收。語音句首「寄／紀／計／既行程」等同音辨識會安全正規化，原始轉錄仍會回顯供核對。完整證據見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
-- **Google contract 邊界**：Calendar outbound CRUD 與 mapped timed non-recurring inbound、Tasks mapped inbound/outbound 已納入契約；Calendar 全天 inbound、recurrence exception、Google-origin 建立，以及 Tasks due 回收仍明確不支援。
+- **Google contract 邊界**：Calendar outbound CRUD、mapped timed non-recurring inbound，以及 primary calendar 上未來、非週期且有時刻的 Google-origin 行程匯入已納入契約；首次 baseline 會匯入既存安全範圍，後續修改／刪除會重排／取消 LINE 提醒。Calendar 全天 inbound、週期 series／exception、非 primary calendar 匯入，以及 Tasks due 回收仍明確不支援。
 - **模型與 API 進一步升級**——首輪已完成；新模型等待實作前對官方文件重核，見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **吸收 fermi 架構經驗**——分階段重做可靠性、持久化、觀測性；不直接合併 fermi 原始碼。
 - **Claude 版助理**——未來可能，可能開新專案或在此 repo 分支，方式待定。

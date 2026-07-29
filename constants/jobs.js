@@ -3,6 +3,7 @@ export const JOB_KINDS = Object.freeze({
   GOOGLE_CALENDAR_SYNC: 'google-calendar-sync',
   GOOGLE_CALENDAR_STATUS: 'google-calendar-status',
   LINE_REMINDER: 'line-reminder',
+  TASK_REMINDER: 'task-reminder',
   WEATHER_DAILY: 'weather-daily',
   GOOGLE_TASKS_SYNC: 'google-tasks-sync',
   GOOGLE_CALENDAR_INBOUND: 'google-calendar-inbound',

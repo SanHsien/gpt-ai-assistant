@@ -1,5 +1,9 @@
 import { query, withTransaction } from '../services/database.js';
 import { decideTaskInbound } from '../contracts/google-provider.js';
+import {
+  cancelPendingTaskReminders,
+  scheduleTaskReminders,
+} from '../services/task-reminder-scheduling.js';
 
 // Google Tasks 的 notes 內含穩定同步標記 [gpt-ai-assistant:<id>]（outbound 寫入用於建立前查重）。
 // inbound 套用備註前先移除該標記，避免把標記本身寫回本機 notes。
@@ -14,8 +18,8 @@ const stripSyncMarker = (notes, taskId) => {
  * @param {Object} draft 已驗證的 task draft（title, notes?, dueAt?, timezone?）
  * @returns {Promise<Object>}
  */
-export const createTask = async (ownerId, draft) => {
-  const result = await query(
+export const createTask = async (ownerId, draft, executor = query) => {
+  const result = await executor(
     `INSERT INTO tasks (owner_id, title, notes, due_at, timezone, priority, tags)
      VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'normal'), $7::text[])
      RETURNING *`,
@@ -96,8 +100,8 @@ export const getTaskForUpdate = async (ownerId, id, executor) => {
  * @param {string} id
  * @returns {Promise<Object|null>}
  */
-export const completeTask = async (ownerId, id) => {
-  const result = await query(
+export const completeTask = async (ownerId, id, executor = query) => {
+  const result = await executor(
     `UPDATE tasks
      SET status = 'done', completed_at = now(), sync_status = 'pending', synced_at = null,
          version = version + 1, updated_at = now()
@@ -114,8 +118,8 @@ export const completeTask = async (ownerId, id) => {
  * @param {string} id
  * @returns {Promise<Object|null>}
  */
-export const reopenTask = async (ownerId, id) => {
-  const result = await query(
+export const reopenTask = async (ownerId, id, executor = query) => {
+  const result = await executor(
     `UPDATE tasks
      SET status = 'open', completed_at = null, sync_status = 'pending', synced_at = null,
          version = version + 1, updated_at = now()
@@ -258,7 +262,12 @@ export const listUnsyncedTasks = async (ownerId, limit = 50) => {
  *   incoming: { deleted?: boolean, status?: string, title?: string, notes?: string|null } }} params
  * @returns {Promise<{ applied: boolean, reason?: string, action?: string }>}
  */
-export const applyInboundTaskUpdate = async ({ ownerId, providerTaskId, incoming }) => (
+export const applyInboundTaskUpdate = async ({
+  ownerId,
+  providerTaskId,
+  incoming,
+  remindersEnabled = false,
+}) => (
   withTransaction(async (client) => {
     const current = await client.query(
       'SELECT * FROM tasks WHERE owner_id = $1 AND provider_task_id = $2 FOR UPDATE',
@@ -270,8 +279,9 @@ export const applyInboundTaskUpdate = async ({ ownerId, providerTaskId, incoming
 
     // 外部刪除 → 本地一併刪除（對稱 Calendar 刪除回收）。
     if (incoming.deleted) {
+      await cancelPendingTaskReminders(task.id, client.query.bind(client));
       await client.query('DELETE FROM tasks WHERE owner_id = $1 AND id = $2', [ownerId, task.id]);
-      return { applied: true, action: 'deleted' };
+      return { applied: true, action: 'deleted', task };
     }
 
     const desiredStatus = incoming.status === 'completed' ? 'done' : 'open';
@@ -295,7 +305,23 @@ export const applyInboundTaskUpdate = async ({ ownerId, providerTaskId, incoming
        RETURNING *`,
       [ownerId, task.id, desiredTitle, desiredNotes, desiredStatus, completedAt],
     );
-    return { applied: true, action: 'updated', task: result.rows[0] };
+    const updated = result.rows[0];
+    await cancelPendingTaskReminders(task.id, client.query.bind(client));
+    if (remindersEnabled && updated.status === 'open' && updated.due_at) {
+      const target = await client.query(
+        'SELECT channel_target FROM users WHERE id = $1',
+        [ownerId],
+      );
+      if (target.rows[0]?.channel_target) {
+        await scheduleTaskReminders({
+          ownerId,
+          task: updated,
+          channelTarget: target.rows[0].channel_target,
+          executor: client.query.bind(client),
+        });
+      }
+    }
+    return { applied: true, action: 'updated', task: updated };
   })
 );
 

@@ -4,6 +4,7 @@ import {
 
 let decryptJson;
 let getEvent;
+let getTask;
 let markJobDelivered;
 let rescheduleJob;
 let getUserById;
@@ -35,6 +36,15 @@ const load = async () => {
   jest.resetModules();
   decryptJson = jest.fn().mockReturnValue({ id: 'U-line-id' });
   getEvent = jest.fn().mockResolvedValue(EVENT);
+  getTask = jest.fn().mockResolvedValue({
+    id: 'task-1',
+    owner_id: 'owner-1',
+    title: '交報告',
+    due_at: '2026-07-20T08:00:00.000Z',
+    timezone: 'Asia/Taipei',
+    status: 'open',
+    version: 1,
+  });
   markJobDelivered = jest.fn().mockResolvedValue(true);
   rescheduleJob = jest.fn().mockResolvedValue(true);
   getUserById = jest.fn().mockResolvedValue({
@@ -44,6 +54,7 @@ const load = async () => {
   enqueueJob = jest.fn().mockResolvedValue({ id: 'next-job' });
   jest.doMock('../../services/data-protection.js', () => ({ decryptJson }));
   jest.doMock('../../repositories/events.js', () => ({ getEvent }));
+  jest.doMock('../../repositories/tasks.js', () => ({ getTask }));
   jest.doMock('../../repositories/jobs.js', () => ({ markJobDelivered, rescheduleJob, enqueueJob }));
   jest.doMock('../../repositories/users.js', () => ({ getUserById }));
   jest.doMock('../../services/line.js', () => ({ push }));
@@ -53,6 +64,7 @@ const load = async () => {
 afterEach(() => {
   jest.dontMock('../../services/data-protection.js');
   jest.dontMock('../../repositories/events.js');
+  jest.dontMock('../../repositories/tasks.js');
   jest.dontMock('../../repositories/jobs.js');
   jest.dontMock('../../repositories/users.js');
   jest.dontMock('../../services/line.js');
@@ -97,6 +109,174 @@ test('a lead reminder labels how far ahead it is', async () => {
   await sendLineReminder({ ...JOB, payload: { ...JOB.payload, leadMinutes: 1440 } });
   const { text } = push.mock.calls[0][0].messages[0];
   expect(text).toContain('行程提醒（1 天前）');
+});
+
+test('sends a task reminder with its due time and complete action', async () => {
+  const { sendTaskReminder } = await load();
+  const taskJob = {
+    ...JOB,
+    payload: {
+      ownerId: 'owner-1',
+      taskId: 'task-1',
+      taskVersion: 1,
+      channelTarget: { encrypted: 'target' },
+      leadMinutes: 1440,
+    },
+  };
+  await sendTaskReminder(taskJob);
+  const [message] = push.mock.calls[0][0].messages;
+  expect(message.text).toContain('任務提醒（1 天前）');
+  expect(message.text).toContain('交報告');
+  expect(message.quickReply.items[0].action).toEqual({
+    type: 'postback',
+    label: '標記完成',
+    data: '完成任務 task-1',
+    displayText: '完成任務',
+  });
+  expect(markJobDelivered).toHaveBeenCalledWith(JOB.id, 'lease-1');
+});
+
+test('skips task reminders after completion or deletion', async () => {
+  const { sendTaskReminder } = await load();
+  const taskJob = {
+    ...JOB,
+    payload: {
+      ownerId: 'owner-1', taskId: 'task-1', taskVersion: 1, channelTarget: { encrypted: 'target' },
+    },
+  };
+  getTask.mockResolvedValueOnce({ id: 'task-1', status: 'done' }).mockResolvedValueOnce(null);
+  await sendTaskReminder(taskJob);
+  await sendTaskReminder(taskJob);
+  expect(push).not.toHaveBeenCalled();
+});
+
+test('task reminders honor pause and quiet hours', async () => {
+  const { sendTaskReminder } = await load();
+  const taskJob = {
+    ...JOB,
+    payload: {
+      ownerId: 'owner-1', taskId: 'task-1', taskVersion: 1, channelTarget: { encrypted: 'target' },
+    },
+  };
+  getUserById.mockResolvedValueOnce({
+    id: 'owner-1', reminders_paused: true,
+  });
+  await sendTaskReminder(taskJob);
+  expect(push).not.toHaveBeenCalled();
+
+  getUserById.mockResolvedValueOnce({
+    id: 'owner-1',
+    timezone: 'Asia/Taipei',
+    quiet_hours: { start: 22, end: 8 },
+    reminders_paused: false,
+  });
+  jest.useFakeTimers().setSystemTime(new Date('2026-07-20T15:30:00Z'));
+  await sendTaskReminder({ ...taskJob, run_at: '2026-07-20T15:30:00Z' });
+  jest.useRealTimers();
+  expect(push).not.toHaveBeenCalled();
+  expect(rescheduleJob).toHaveBeenCalledWith(JOB.id, 'lease-1', expect.any(Date));
+});
+
+test('stale task reminders are skipped', async () => {
+  const { sendTaskReminder } = await load();
+  const taskJob = {
+    ...JOB,
+    run_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    payload: {
+      ownerId: 'owner-1', taskId: 'task-1', taskVersion: 1, channelTarget: { encrypted: 'target' },
+    },
+  };
+  await sendTaskReminder(taskJob);
+  expect(push).not.toHaveBeenCalled();
+});
+
+test('task reminder uses the user timezone for legacy tasks without one', async () => {
+  const { sendTaskReminder } = await load();
+  getTask.mockResolvedValue({
+    id: 'task-1',
+    owner_id: 'owner-1',
+    title: 'DST 任務',
+    due_at: '2026-03-08T13:00:00.000Z',
+    timezone: null,
+    status: 'open',
+    version: 1,
+  });
+  getUserById.mockResolvedValue({
+    id: 'owner-1',
+    timezone: 'America/New_York',
+    quiet_hours: null,
+    reminders_paused: false,
+  });
+  await sendTaskReminder({
+    ...JOB,
+    payload: {
+      ownerId: 'owner-1',
+      taskId: 'task-1',
+      taskVersion: 1,
+      channelTarget: { encrypted: 'target' },
+    },
+  });
+  expect(push.mock.calls[0][0].messages[0].text).toContain('上午9:00');
+});
+
+test('task reminder skips delivered and stale-version jobs', async () => {
+  const { sendTaskReminder } = await load();
+  const payload = {
+    ownerId: 'owner-1',
+    taskId: 'task-1',
+    taskVersion: 1,
+    channelTarget: { encrypted: 'target' },
+  };
+  await sendTaskReminder({ ...JOB, delivered_at: '2026-07-20T00:00:00Z', payload });
+  getTask.mockResolvedValue({ id: 'task-1', status: 'open', due_at: '2099-01-01', version: 2 });
+  await sendTaskReminder({ ...JOB, payload });
+  expect(push).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['decrypt failure', () => { decryptJson.mockImplementation(() => { throw new Error('decrypt'); }); }],
+  ['missing target', () => { decryptJson.mockReturnValue({}); }],
+])('task reminder marks %s as non-retryable', async (_label, arrange) => {
+  const { sendTaskReminder } = await load();
+  arrange();
+  await expect(sendTaskReminder({
+    ...JOB,
+    payload: {
+      ownerId: 'owner-1',
+      taskId: 'task-1',
+      taskVersion: 1,
+      channelTarget: { encrypted: 'target' },
+    },
+  })).rejects.toMatchObject({ retryable: false });
+  expect(markJobDelivered).not.toHaveBeenCalled();
+});
+
+test.each([
+  [409, true, undefined],
+  [400, false, false],
+  [429, false, undefined],
+  [500, false, undefined],
+])('task reminder handles LINE status %i', async (status, delivered, retryable) => {
+  const { sendTaskReminder } = await load();
+  push.mockRejectedValue(Object.assign(new Error(`line ${status}`), { response: { status } }));
+  const promise = sendTaskReminder({
+    ...JOB,
+    payload: {
+      ownerId: 'owner-1',
+      taskId: 'task-1',
+      taskVersion: 1,
+      channelTarget: { encrypted: 'target' },
+    },
+  });
+  if (delivered) {
+    await expect(promise).resolves.toBeUndefined();
+    expect(markJobDelivered).toHaveBeenCalled();
+  } else {
+    await expect(promise).rejects.toMatchObject(
+      retryable === undefined ? {} : { retryable },
+    );
+    expect(markJobDelivered).not.toHaveBeenCalled();
+  }
 });
 
 test('does not push cancelled, completed, deleted, or already delivered reminders', async () => {

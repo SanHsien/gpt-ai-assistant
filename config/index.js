@@ -51,9 +51,10 @@ const config = Object.freeze({
   // 提醒晚於預定時刻超過這麼多分鐘就視為過期，跳過不送（避免 worker 停機恢復後補送陳舊提醒）。
   REMINDER_STALE_MINUTES: Number(env.REMINDER_STALE_MINUTES) || 120,
   // 多重（lead）提醒：除了到點提醒，額外在「提前 N 分鐘」各排一個提醒。逗號分隔的正整數分鐘，
-  // 例如 `60,1440`＝提前 1 小時與 1 天。預設空＝只有到點提醒（向後相容）。去重、排序、上限 5 個。
+  // 例如 `60,1440`＝提前 1 小時與 1 天。預設 1440＝提前 1 天；另固定保留到點提醒。
+  // 設為空字串可只保留到點提醒。去重、排序、上限 5 個。
   REMINDER_OFFSETS: [...new Set(
-    String(env.REMINDER_OFFSETS || '').split(',')
+    String(env.REMINDER_OFFSETS === undefined ? '1440' : env.REMINDER_OFFSETS).split(',')
       .map((v) => Number(v.trim()))
       .filter((n) => Number.isSafeInteger(n) && n > 0 && n <= 525600),
   )].sort((a, b) => a - b).slice(0, 5),
@@ -69,6 +70,12 @@ const config = Object.freeze({
   ENABLE_GOOGLE_CALENDAR_INBOUND: env.ENABLE_GOOGLE_CALENDAR_INBOUND === 'true' || false,
   CALENDAR_INBOUND_INTERVAL: Number(env.CALENDAR_INBOUND_INTERVAL) || 300,
   CALENDAR_INBOUND_MAX_PER_RUN: Number(env.CALENDAR_INBOUND_MAX_PER_RUN) || 20,
+  CALENDAR_INBOUND_PAGE_SIZE: Math.min(Math.max(
+    Number.isFinite(Number(env.CALENDAR_INBOUND_PAGE_SIZE))
+      ? Math.trunc(Number(env.CALENDAR_INBOUND_PAGE_SIZE))
+      : 50,
+    10,
+  ), 250),
   // Google Tasks 單向同步。與 Calendar 共用同一 OAuth 授權（scope 累加），
   // 現有僅授權 Calendar 的使用者需重新 `連結 Google 行事曆` 以加上 tasks scope。
   ENABLE_GOOGLE_TASKS: env.ENABLE_GOOGLE_TASKS === 'true' || false,

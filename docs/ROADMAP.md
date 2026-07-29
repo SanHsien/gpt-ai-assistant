@@ -108,7 +108,7 @@ adapters
 - [x] 新增 durable queue 與 worker；webhook 驗簽、入列、ACK，再以 Vercel `waitUntil()` drain。
 - [x] 新增 job lease、fencing token、有限次數 retry、指數退避與 dead-letter 狀態。
 - [x] 建立 run trace、結構化 log 與能力／模型／token 成本欄位；對話內容與憑證必須遮罩。（`services/run-trace.js` 的 `recordCompletionRun` 接進 `generateCompletion`＋schedule／task 解析；記能力／模型／prompt·completion token／`cost_usd`（依 `OPENAI_PRICE_PER_1K_*` 估算）／耗時／狀態，單行 JSON log 且不含對話內容；無 DB 或寫入失敗都不影響主流程。）
-- [x] 建立 migration rollback、備份／還原與本機 Supabase 測試流程：`0001`–`0019` migration／rollback 齊備；備份／還原（Supabase PITR 與 `pg_dump`／`pg_restore`）、本機 Supabase／Postgres 測試流程與 worker crash 恢復演練（lease 過期回收＋fencing token，`tests/repositories/jobs.test.js` 覆蓋）已寫入 [`DEVELOPMENT.md`](DEVELOPMENT.md)「備份／還原與可靠性演練」。Production 套用版本仍須每次發布前實測。
+- [x] 建立 migration rollback、備份／還原與本機 Supabase 測試流程：`0001`–`0020` migration／rollback 齊備；備份／還原（Supabase PITR 與 `pg_dump`／`pg_restore`）、本機 Supabase／Postgres 測試流程與 worker crash 恢復演練（lease 過期回收＋fencing token，`tests/repositories/jobs.test.js` 覆蓋）已寫入 [`DEVELOPMENT.md`](DEVELOPMENT.md)「備份／還原與可靠性演練」。Production 套用版本仍須每次發布前實測。
 - [x] 更新 Vercel / Supabase 部署文件與環境變數；正式環境 fail closed。
 
 **預計檔案：** `db/migrations/*.sql`、`services/database.js`、`repositories/*.js`、`workers/event-worker.js`、`services/jobs.js`、`tests/integration/database.test.js`、`tests/workers/event-worker.test.js`。
@@ -169,7 +169,7 @@ adapters
 
 > **M1 基線：** 每筆行程一個到點提醒、安靜時段、暫停／恢復、過期與 retry key 政策已實作。多重提醒與自訂 offset 是 5.x 增強，不阻擋 M1 上線。
 
-- [x] 支援每筆行程一個到點提醒（有時間：開始時間；整天：當日 09:00），並可加**多重（lead）提醒**：`REMINDER_OFFSETS` 在到點外各排一個提醒（去重、上限 5 個、每個最多一年）。到點／lead／週期 occurrence 統一以 `jobs.idempotency_key` 追蹤與取消；`0017` 移除會漂移的 `event_reminders` 第二份索引。修改、Google inbound 改時刻與完成都會取消舊 job 並依新狀態重排。
+- [x] 支援行程與有期限任務的到點提醒，並可加**多重（lead）提醒**：`REMINDER_OFFSETS` 預設 `1440`（一天前），去重、上限 5 個、每個最多一年。行程到點／lead／週期 occurrence 與 task due／lead 都以版本化 `jobs.idempotency_key` 追蹤；行程修改及 mapped Google inbound、任務完成／刪除／重開及 mapped Google Tasks inbound 會取消或重排。無期限任務不排提醒。
 - [x] Supabase Cron 每分鐘觸發既有 durable queue；scheduler 以 `FOR UPDATE SKIP LOCKED`、lease 與 fencing token 原子 claim，多 worker 不重複領取。
 - [x] 使用 LINE Push API，不依賴已過期 reply token；此路徑會計入 LINE 月額度。
 - [x] 支援安靜時段（延後到時段結束再送）、暫停（暫停期間到點提醒跳過、不補發）、過期策略（晚於 `REMINDER_STALE_MINUTES` 跳過陳舊提醒）；取消＝完成或刪除行程時自動關閉其提醒 job（含 lead 提醒，靠 `sendLineReminder` 的非 confirmed／不存在守衛 no-op）。
@@ -214,7 +214,7 @@ adapters
   - **all-day 外部修改不納入 5.x**：Google exclusive end date、本地時區與 DST 邊界需要 provider adapter 的明確契約；留到 6.x 架構收斂後另案評估。
   - **週期 master／instance／exception 外部修改不納入 5.x**：需完整 RRULE 反解與例外模型；LINE 建立的週期行程仍可 outbound 並在本地逐次提醒。
   - 附件／受邀者不符合個人單人定位，不實作。
-- [x] sync token 增量輪詢會建立基線、處理 cancelled 與 5.x 範圍內的 confirmed 修改、在 410 GONE 清 token 重建，並以 `CALENDAR_INBOUND_INTERVAL` 節流；rc.8／`0019` 改以 `singleEvents=false` 保留 recurring series 本體，避免無截止日週期展開成大量 instance 拖垮 Cron。既有 v1 cursor 只重建一次；不採 watch channel，也不建立 Google-origin 新行程。
+- [x] sync token 增量輪詢會建立基線、處理 cancelled 與 confirmed 修改、在 410 GONE 清 token 重建，並以 `CALENDAR_INBOUND_INTERVAL` 節流；rc.8／`0019` 改以 `singleEvents=false` 保留 recurring series 本體，避免無截止日週期展開成大量 instance 拖垮 Cron。`0020`／inbound v3 會讓既有 v2 cursor 重建一次，baseline 與增量均匯入 connected primary calendar 上未來、非週期且有時刻的 Google-origin 行程，並沿用 durable reminder lifecycle；全天、週期與非 primary 匯入仍不支援。不採 watch channel。
 - [x] 衝突政策：本地 `synced` 才吃外部修改，`pending` 讓 outbound 先贏；provider 水位擋自身 echo；套用設 `synced` 防迴圈。Google 端由使用者刪除採 hard-delete，不增加人工確認。
 - [x] calendar delivery 與 LINE reminder 分開去重：`ENABLE_REMINDERS` 開啟時，`toGoogleEvent` 對寫入 Google 的行程設 `reminders.useDefault=false`（清空 overrides），讓 Google 不再送自身預設通知，LINE 提醒成為單一通知源；未開 LINE 提醒則保留 Google 預設通知，不動使用者原本的行事曆提醒。
 
@@ -294,7 +294,7 @@ adapters
 - [x] 正式助理模式強制 `DATABASE_URL`、durable queue 與 migration preflight；移除 serverless process-memory 冪等與同步 fail-open fallback。
 - [x] 移除正式模式的 Vercel env storage 與其他 legacy state authority；Postgres 成為使用者、事件、任務、確認、job、run 與 bot source 的唯一 durable source of truth。對話 prompt/history 因隱私政策刻意保持 ephemeral。
 - [x] 移除 `APP_WEBHOOK_QUEUE` 與 Vercel env storage 所需舊環境變數；`docs/DEVELOPMENT.md` 提供升級檢查、備份、migration 與明確 rollback 文件。
-- [x] 將 Google Calendar／Tasks 的 outbound、inbound、權限與衝突政策收斂為共用可測 provider contract；全天 inbound、recurrence exception、Google-origin 建立與 Tasks due 回收仍維持明確不支援。
+- [x] 將 Google Calendar／Tasks 的 outbound、inbound、權限與衝突政策收斂為共用可測 provider contract；Google-origin 建立只開放 connected primary calendar 的未來 timed non-recurring 安全範圍。全天 inbound、recurrence series／exception、非 primary 匯入與 Tasks due 回收仍維持明確不支援。
 - [x] 在既有 5.x Production 完成 migration、health、Cron 與 5.x ↔ RC 回滾往返；新安裝流程由 migration runner、preflight 與部署手冊固定。
 - [x] 全域 Quick Reply 收斂為最多 13 個常用且依 feature flags 顯示的入口；`指令` 依已啟用功能輸出分組完整清單與範例；文件提供選用 3×2 圖文選單，但不把 rich menu 管理變成 runtime 前置條件。
 - [x] 在真實 LINE + Supabase + Google 完成 5.x 累積驗收後發布 `6.0.0`；最後的桌面音訊轉錄→確認→Google 單筆建立於 2026-07-22 通過。

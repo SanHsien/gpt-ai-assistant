@@ -16,11 +16,18 @@ let parseTaskDraft;
 let isGoogleTasksEnabled;
 let hasTasksScope;
 let enqueueJob;
+let scheduleTaskReminders;
+let cancelPendingTaskReminders;
 
-const load = async ({ enabled = true, databaseConfigured = true } = {}) => {
+const load = async ({
+  enabled = true, remindersEnabled = true, databaseConfigured = true,
+} = {}) => {
   jest.resetModules();
   process.env.ENABLE_TASKS = enabled ? 'true' : 'false';
-  upsertUser = jest.fn().mockResolvedValue({ id: 'owner-1', timezone: null });
+  process.env.ENABLE_REMINDERS = remindersEnabled ? 'true' : 'false';
+  upsertUser = jest.fn().mockResolvedValue({
+    id: 'owner-1', timezone: null, channel_target: { encrypted: 'target' },
+  });
   createTask = jest.fn().mockResolvedValue({ id: 't1', title: '買牛奶', version: 1 });
   listTasks = jest.fn().mockResolvedValue([]);
   getTask = jest.fn().mockResolvedValue(null);
@@ -35,6 +42,8 @@ const load = async ({ enabled = true, databaseConfigured = true } = {}) => {
   isGoogleTasksEnabled = jest.fn().mockReturnValue(false);
   hasTasksScope = jest.fn().mockResolvedValue(true);
   enqueueJob = jest.fn().mockResolvedValue({ id: 'j1' });
+  scheduleTaskReminders = jest.fn().mockResolvedValue({ queued: 2 });
+  cancelPendingTaskReminders = jest.fn().mockResolvedValue(undefined);
   jest.doMock('../../../repositories/users.js', () => ({ upsertUser }));
   jest.doMock('../../../repositories/tasks.js', () => ({
     createTask,
@@ -49,6 +58,9 @@ const load = async ({ enabled = true, databaseConfigured = true } = {}) => {
   jest.doMock('../../../services/task-parser.js', () => ({ parseTaskDraft }));
   jest.doMock('../../../services/google-tasks.js', () => ({ isGoogleTasksEnabled, hasTasksScope }));
   jest.doMock('../../../repositories/jobs.js', () => ({ enqueueJob }));
+  jest.doMock('../../../services/task-reminder-scheduling.js', () => ({
+    scheduleTaskReminders, cancelPendingTaskReminders,
+  }));
   const { default: taskHandler } = await import('../../../app/handlers/tasks.js');
   return taskHandler;
 };
@@ -67,9 +79,11 @@ const makeContext = (text) => ({
 
 afterEach(() => {
   delete process.env.ENABLE_TASKS;
+  delete process.env.ENABLE_REMINDERS;
   ['../../../repositories/users.js', '../../../repositories/tasks.js',
     '../../../services/database.js', '../../../services/task-parser.js',
-    '../../../services/google-tasks.js', '../../../repositories/jobs.js']
+    '../../../services/google-tasks.js', '../../../repositories/jobs.js',
+    '../../../services/task-reminder-scheduling.js']
     .forEach((mod) => jest.dontMock(mod));
   jest.resetModules();
 });
@@ -120,7 +134,7 @@ test('refuses to work when the feature is off, without touching the database', a
 test('creates a title-only task', async () => {
   const taskHandler = await load();
   const context = await taskHandler(makeContext('新增任務 買牛奶'));
-  expect(createTask).toHaveBeenCalledWith('owner-1', { title: '買牛奶' });
+  expect(createTask).toHaveBeenCalledWith('owner-1', { title: '買牛奶' }, expect.any(Function));
   expect(context.messages[0].text).toContain('已新增任務');
   expect(context.messages[0].text).toContain('尚未同步 Google Tasks');
   expect(context.messages[0].text).toContain('不會建立 Google 日曆行程');
@@ -165,7 +179,7 @@ test('says the list is empty when there are no open tasks', async () => {
 test('completes the task named by the done shortcut', async () => {
   const taskHandler = await load();
   const context = await taskHandler(makeContext('完成任務 ta。'));
-  expect(completeTask).toHaveBeenCalledWith('owner-1', 'ta');
+  expect(completeTask).toHaveBeenCalledWith('owner-1', 'ta', expect.any(Function));
   expect(context.messages[0].text).toContain('已完成任務');
 });
 
@@ -188,7 +202,7 @@ test('completing an unknown task reports not found', async () => {
 test('deletes the task named by the delete shortcut', async () => {
   const taskHandler = await load();
   const context = await taskHandler(makeContext('刪任務 ta。'));
-  expect(deleteTaskAndReturn).toHaveBeenCalledWith('owner-1', 'ta');
+  expect(deleteTaskAndReturn).toHaveBeenCalledWith('owner-1', 'ta', expect.any(Function));
   expect(context.messages[0].text).toContain('已刪除任務');
 });
 
@@ -204,10 +218,35 @@ test('parses a due date and shows it on the created task', async () => {
   parseTaskDraft.mockResolvedValue({
     valid: true, errors: [], value: { title: '交報告', dueAt: '2026-07-20T07:00:00.000Z' },
   });
+  createTask.mockResolvedValue({
+    id: 't1', title: '交報告', due_at: '2099-07-20T07:00:00.000Z', version: 1,
+  });
   const context = await taskHandler(makeContext('新增任務 明天早上交報告'));
   expect(parseTaskDraft).toHaveBeenCalledWith(expect.objectContaining({ text: '明天早上交報告' }));
-  expect(createTask).toHaveBeenCalledWith('owner-1', { title: '交報告', dueAt: '2026-07-20T07:00:00.000Z' });
+  expect(createTask).toHaveBeenCalledWith('owner-1', {
+    title: '交報告',
+    dueAt: '2026-07-20T07:00:00.000Z',
+    timezone: 'Asia/Taipei',
+  }, expect.any(Function));
   expect(context.messages[0].text).toContain('交報告');
+  expect(scheduleTaskReminders).toHaveBeenCalledWith({
+    ownerId: 'owner-1',
+    task: expect.objectContaining({ id: 't1' }),
+    channelTarget: { encrypted: 'target' },
+    executor: expect.any(Function),
+  });
+});
+
+test('completing a task cancels all pending task reminders', async () => {
+  const taskHandler = await load();
+  await taskHandler(makeContext('完成任務 ta'));
+  expect(cancelPendingTaskReminders).toHaveBeenCalledWith('t1', expect.any(Function));
+});
+
+test('deleting a task cancels all pending task reminders', async () => {
+  const taskHandler = await load();
+  await taskHandler(makeContext('刪任務 ta'));
+  expect(cancelPendingTaskReminders).toHaveBeenCalledWith('t1', expect.any(Function));
 });
 
 test('filters the list to a due-bounded range', async () => {
@@ -331,11 +370,39 @@ test('adds a next-page shortcut when there are more tasks than a page', async ()
 
 test('reopens a completed task by id (idempotent)', async () => {
   const taskHandler = await load();
+  reopenTask.mockResolvedValue({
+    id: 'ta', title: '買牛奶', due_at: '2099-07-20T07:00:00.000Z', version: 2,
+  });
   const context = await taskHandler(makeContext('重開任務 ta。'));
-  expect(reopenTask).toHaveBeenCalledWith('owner-1', 'ta');
+  expect(reopenTask).toHaveBeenCalledWith('owner-1', 'ta', expect.any(Function));
   expect(context.messages[0].text).toContain('已重新開啟任務');
   expect(context.messages[0].text).toContain('尚未同步 Google Tasks');
   expect(context.messages[0].text).toContain('不會建立 Google 日曆行程');
+  expect(cancelPendingTaskReminders).toHaveBeenCalledWith('ta', expect.any(Function));
+  expect(scheduleTaskReminders).toHaveBeenCalledWith({
+    ownerId: 'owner-1',
+    task: expect.objectContaining({ id: 'ta' }),
+    channelTarget: { encrypted: 'target' },
+    executor: expect.any(Function),
+  });
+});
+
+test('task creation and reminder scheduling share one transaction failure boundary', async () => {
+  const taskHandler = await load();
+  parseTaskDraft.mockResolvedValue({
+    valid: true,
+    errors: [],
+    value: { title: '交報告', dueAt: '2099-07-20T07:00:00.000Z', timezone: 'Asia/Taipei' },
+  });
+  createTask.mockResolvedValue({
+    id: 't1', title: '交報告', due_at: '2099-07-20T07:00:00.000Z', version: 1,
+  });
+  scheduleTaskReminders.mockRejectedValue(new Error('queue failed'));
+  const context = await taskHandler(makeContext('新增任務 交報告'));
+  expect(context.error).toMatchObject({ message: 'queue failed' });
+  expect(withTransaction).toHaveBeenCalled();
+  expect(createTask.mock.calls[0][2]).toBe(scheduleTaskReminders.mock.calls[0][0].executor);
+  expect(enqueueJob).not.toHaveBeenCalled();
 });
 
 test('reopening a task that is not done is a no-op message', async () => {

@@ -38,6 +38,12 @@ test('task contract keeps local pending writes authoritative', () => {
 });
 
 test('unsupported round trips remain explicit', () => {
+  expect(GOOGLE_PROVIDER_CONTRACT.calendar.inbound.createFromGoogle).toEqual({
+    calendar: 'primary',
+    timed: true,
+    nonRecurring: true,
+    futureOnly: true,
+  });
   expect(GOOGLE_PROVIDER_CONTRACT.calendar.inbound.allDay).toBe(false);
   expect(GOOGLE_PROVIDER_CONTRACT.calendar.inbound.recurrenceExceptions).toBe(false);
   expect(GOOGLE_PROVIDER_CONTRACT.tasks.inbound.dueDate).toBe(false);

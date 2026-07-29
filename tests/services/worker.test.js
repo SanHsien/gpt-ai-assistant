@@ -11,6 +11,7 @@ let markJobDelivered;
 let enqueueJob;
 let syncGoogleCalendarEvent;
 let sendLineReminder;
+let sendTaskReminder;
 let sendGoogleCalendarStatus;
 
 const EVENT = { webhookEventId: 'w1', type: 'message' };
@@ -29,6 +30,7 @@ const load = async () => {
   enqueueJob = jest.fn().mockResolvedValue({ id: 'status-job-1' });
   syncGoogleCalendarEvent = jest.fn().mockResolvedValue({ id: 'e1', sync_status: 'synced' });
   sendLineReminder = jest.fn().mockResolvedValue(undefined);
+  sendTaskReminder = jest.fn().mockResolvedValue(undefined);
   sendGoogleCalendarStatus = jest.fn().mockResolvedValue(undefined);
   jest.doMock('../../repositories/jobs.js', () => ({
     claimNextJob, saveJobResult, markJobDelivered, enqueueJob,
@@ -37,7 +39,7 @@ const load = async () => {
   jest.doMock('../../app/app.js', () => ({ prepareEvents }));
   jest.doMock('../../utils/index.js', () => ({ replyMessage }));
   jest.doMock('../../services/google-calendar.js', () => ({ syncGoogleCalendarEvent }));
-  jest.doMock('../../services/reminders.js', () => ({ sendLineReminder }));
+  jest.doMock('../../services/reminders.js', () => ({ sendLineReminder, sendTaskReminder }));
   jest.doMock('../../services/google-calendar-status.js', () => ({ sendGoogleCalendarStatus }));
   return import('../../services/worker.js');
 };
@@ -235,6 +237,14 @@ test('LINE reminder jobs run the reminder sender', async () => {
   const job = { id: 'j3', kind: 'line-reminder', payload: { eventId: 'e1' } };
   await handleJob(job);
   expect(sendLineReminder).toHaveBeenCalledWith(job);
+  expect(prepareEvents).not.toHaveBeenCalled();
+});
+
+test('task reminder jobs run the task reminder sender', async () => {
+  const { handleJob } = await load();
+  const job = { id: 'j5', kind: 'task-reminder', payload: { taskId: 't1' } };
+  await handleJob(job);
+  expect(sendTaskReminder).toHaveBeenCalledWith(job);
   expect(prepareEvents).not.toHaveBeenCalled();
 });
 

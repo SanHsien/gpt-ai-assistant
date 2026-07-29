@@ -16,6 +16,10 @@ import { isDatabaseConfigured, withTransaction } from '../../services/database.j
 import { hasTasksScope, isGoogleTasksEnabled } from '../../services/google-tasks.js';
 import { parseTaskDraft } from '../../services/task-parser.js';
 import {
+  cancelPendingTaskReminders,
+  scheduleTaskReminders,
+} from '../../services/task-reminder-scheduling.js';
+import {
   COMMAND_BOT_TASK,
   COMMAND_BOT_TASK_DELETE,
   COMMAND_BOT_TASK_DONE,
@@ -77,6 +81,17 @@ const enqueueTaskSync = async (ownerId, task, action) => {
   if (action === 'upsert') await markTaskSyncPending(ownerId, task.id);
   await enqueueTaskSyncJob(ownerId, task, action);
   return true;
+};
+
+const scheduleTaskReminder = async (owner, task, executor) => {
+  if (!config.ENABLE_REMINDERS || !task?.due_at || !owner.channel_target) return false;
+  const { queued } = await scheduleTaskReminders({
+    ownerId: owner.id,
+    task,
+    channelTarget: owner.channel_target,
+    executor,
+  });
+  return queued > 0;
 };
 
 const formatDueDate = (value, timezone) => new Intl.DateTimeFormat('zh-TW', {
@@ -240,7 +255,13 @@ const createNewTask = async (context, owner, timezone) => {
     context.pushText(t('__TEXT_TASK_USAGE'));
     return context;
   }
-  const task = await createTask(owner.id, value);
+  const taskDraft = value.dueAt && !value.timezone ? { ...value, timezone } : value;
+  const task = await withTransaction(async (client) => {
+    const executor = client.query.bind(client);
+    const created = await createTask(owner.id, taskDraft, executor);
+    await scheduleTaskReminder(owner, created, executor);
+    return created;
+  });
   const syncQueued = await enqueueTaskSync(owner.id, task, 'upsert');
   const line = value.dueAt ? `${value.title}（${formatDueDate(value.dueAt, timezone)}）` : value.title;
   const scope = syncQueued ? '__TEXT_TASK_SYNC_SCOPE' : '__TEXT_TASK_STORAGE_SCOPE';
@@ -326,7 +347,15 @@ const reopenTaskById = async (context, owner) => {
     context.pushText(t('__TEXT_TASK_REOPEN_USAGE'));
     return context;
   }
-  const task = await reopenTask(owner.id, id);
+  const task = await withTransaction(async (client) => {
+    const executor = client.query.bind(client);
+    const reopened = await reopenTask(owner.id, id, executor);
+    if (reopened) {
+      await cancelPendingTaskReminders(reopened.id, executor);
+      await scheduleTaskReminder(owner, reopened, executor);
+    }
+    return reopened;
+  });
   if (task) {
     const syncQueued = await enqueueTaskSync(owner.id, task, 'upsert');
     const scope = syncQueued ? '__TEXT_TASK_SYNC_SCOPE' : '__TEXT_TASK_STORAGE_SCOPE';
@@ -344,7 +373,12 @@ const markTaskDone = async (context, owner) => {
     context.pushText(t('__TEXT_TASK_DONE_USAGE'));
     return context;
   }
-  const task = await completeTask(owner.id, id);
+  const task = await withTransaction(async (client) => {
+    const executor = client.query.bind(client);
+    const completed = await completeTask(owner.id, id, executor);
+    if (completed) await cancelPendingTaskReminders(completed.id, executor);
+    return completed;
+  });
   if (task) {
     await enqueueTaskSync(owner.id, task, 'upsert');
     context.pushText(`${t('__TEXT_TASK_DONE')}\n${task.title}`);
@@ -363,17 +397,18 @@ const removeTask = async (context, owner) => {
     return context;
   }
   const syncEnabled = await canSyncTasks(owner.id);
-  const removed = syncEnabled
-    ? await withTransaction(async (client) => {
-      const executor = client.query.bind(client);
-      const task = await deleteTaskAndReturn(owner.id, id, executor);
+  const removed = await withTransaction(async (client) => {
+    const executor = client.query.bind(client);
+    const task = await deleteTaskAndReturn(owner.id, id, executor);
+    if (task) {
+      await cancelPendingTaskReminders(task.id, executor);
       // DELETE 會等待同步 worker 的列鎖；若遠端剛建立完成，RETURNING 可取得最新 provider id。
-      if (task?.provider_task_id) {
+      if (syncEnabled && task.provider_task_id) {
         await enqueueTaskSyncJob(owner.id, task, 'delete', executor);
       }
-      return task;
-    })
-    : await deleteTaskAndReturn(owner.id, id);
+    }
+    return task;
+  });
   context.pushText(removed ? t('__TEXT_TASK_DELETED') : t('__TEXT_TASK_NOTFOUND'));
   return context;
 };
@@ -390,7 +425,10 @@ const exec = (context) => check(context) && (
       return context;
     }
     try {
-      const owner = await upsertUser({ channelUserKey: context.userId });
+      const owner = await upsertUser({
+        channelUserKey: context.userId,
+        ...(config.ENABLE_REMINDERS ? { channelTarget: context.userId } : {}),
+      });
       const timezone = owner.timezone || config.SCHEDULE_DEFAULT_TIMEZONE;
 
       if (context.hasCommand(COMMAND_BOT_TASK_LIST)) return await listTasksView(context, owner, timezone);

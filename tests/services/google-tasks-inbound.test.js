@@ -12,8 +12,9 @@ let withTransaction;
 
 const GOOGLE_TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks';
 
-const load = async () => {
+const load = async ({ remindersEnabled = true } = {}) => {
   jest.resetModules();
+  process.env.ENABLE_REMINDERS = remindersEnabled ? 'true' : 'false';
   authorizedRequest = jest.fn();
   getCalendarAccount = jest.fn().mockResolvedValue({ owner_id: 'o1', scopes: [GOOGLE_TASKS_SCOPE] });
   claimAccountsForTasksInbound = jest.fn();
@@ -38,6 +39,7 @@ afterEach(() => {
   ['../../services/google-calendar.js', '../../repositories/calendar-accounts.js',
     '../../repositories/tasks.js', '../../repositories/jobs.js', '../../services/database.js']
     .forEach((mod) => jest.dontMock(mod));
+  delete process.env.ENABLE_REMINDERS;
   jest.resetModules();
 });
 
@@ -62,8 +64,10 @@ test('pullTaskChanges applies changes and counts only applied ones', async () =>
     },
   });
   applyInboundTaskUpdate
-    .mockResolvedValueOnce({ applied: true })
-    .mockResolvedValueOnce({ applied: true, action: 'deleted' })
+    .mockResolvedValueOnce({
+      applied: true, action: 'updated', task: { id: 't1', status: 'done' },
+    })
+    .mockResolvedValueOnce({ applied: true, action: 'deleted', task: { id: 't2' } })
     .mockResolvedValueOnce({ applied: false, reason: 'no_change' });
   const result = await pullTaskChanges('o1', '2026-07-17T00:00:00.000Z');
   expect(result).toEqual({ changed: 2 });
@@ -71,6 +75,40 @@ test('pullTaskChanges applies changes and counts only applied ones', async () =>
   // updatedMin 有帶進查詢參數。
   expect(authorizedRequest.mock.calls[0][1].params.updatedMin).toBe('2026-07-17T00:00:00.000Z');
   expect(authorizedRequest.mock.calls[0][1].params.showDeleted).toBe(true);
+  expect(applyInboundTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    remindersEnabled: true,
+  }));
+});
+
+test('Google-side reopen reschedules the local due reminder', async () => {
+  const { pullTaskChanges } = await load();
+  authorizedRequest.mockResolvedValue({
+    response: { data: { items: [{ id: 'g1', status: 'needsAction', title: 'a' }] } },
+  });
+  const task = {
+    id: 't1', status: 'open', due_at: '2099-07-20T08:00:00.000Z', version: 2,
+  };
+  applyInboundTaskUpdate.mockResolvedValue({ applied: true, action: 'updated', task });
+  await pullTaskChanges('o1');
+  expect(applyInboundTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    providerTaskId: 'g1', remindersEnabled: true,
+  }));
+});
+
+test('Google-side lifecycle changes still cancel stale jobs while reminders are disabled', async () => {
+  const { pullTaskChanges } = await load({ remindersEnabled: false });
+  authorizedRequest.mockResolvedValue({
+    response: { data: { items: [{ id: 'g1', status: 'completed', title: 'a' }] } },
+  });
+  applyInboundTaskUpdate.mockResolvedValue({
+    applied: true, action: 'updated', task: { id: 't1', status: 'done' },
+  });
+
+  await pullTaskChanges('o1');
+
+  expect(applyInboundTaskUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    providerTaskId: 'g1', remindersEnabled: false,
+  }));
 });
 
 test('pullTaskChanges follows pageToken across pages', async () => {

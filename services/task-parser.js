@@ -112,7 +112,11 @@ export const parseTaskDraft = async ({ text, timezone = null, now = new Date() }
       ...(dueAt != null ? { dueAt } : {}),
       ...(json.priority != null ? { priority: json.priority } : {}),
     };
-  return validateTaskDraft({ ...base, ...(tags.length > 0 ? { tags } : {}) });
+  return validateTaskDraft({
+    ...base,
+    ...(base.dueAt && timezone ? { timezone } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
+  });
 };
 
 export default { parseTaskDraft };

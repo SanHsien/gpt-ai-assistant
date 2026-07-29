@@ -8,7 +8,7 @@
 
 本次移除 serverless process-memory 去重、同步 fail-open 與 Vercel env storage。所有 webhook 必須先通過 runtime preflight 並原子寫入 Postgres；缺事件 ID、DB／migration 異常或必要金鑰缺失時回 `5xx`，讓 LINE redelivery。`bot_sources` 使用 HMAC key 與交易鎖保存 user/group 啟停狀態及原子配額，並啟用 RLS、不提供 client policy；不落地原始 LINE id、名稱或對話。
 
-Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收斂為共用 contract。Calendar mapped timed non-recurring inbound 與 Tasks mapped inbound/outbound 在契約內；全天 inbound、recurrence exception、Google-origin 建立及 Tasks due 回收仍明確不支援。RC.4 完成 Express 5、Jest 30、ESLint 10 flat config、注入式 bot source repository 與容器 port／liveness fail-safe；rc.5 補 Tasks API 前置與 dead job 恢復；rc.6 修正實機發現的週期行程 UTC offset 重複套用，並讓確認摘要明列重複規則。
+Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收斂為共用 contract。Calendar mapped timed non-recurring inbound、primary calendar 上未來 timed non-recurring Google-origin baseline／增量匯入，以及 Tasks mapped inbound/outbound 在契約內；全天 inbound、recurrence series／exception、非 primary 匯入及 Tasks due 回收仍明確不支援。RC.4 完成 Express 5、Jest 30、ESLint 10 flat config、注入式 bot source repository 與容器 port／liveness fail-safe；rc.5 補 Tasks API 前置與 dead job 恢復；rc.6 修正實機發現的週期行程 UTC offset 重複套用，並讓確認摘要明列重複規則。
 
 ## 驗證
 
@@ -29,6 +29,7 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 - **［已修復］開發工具 major 自動合併過寬與 npm audit 19 high**：Babel 8 通過測試但與 Jest 30 內部 Babel 7 peer contract 衝突；`047a0d3`（2026-07-26）回復 Babel 7.29.7、將 npm major 一律改為人工審查，並以套件範圍 overrides 升級 Jest 的 `glob`／`test-exclude` 漏洞鏈；`86ad207`（2026-07-26）同步讓 Dependabot 暫緩不相容的 Babel major，並由 freshness issue 持續追蹤相容時機。`npm ci` 無 peer conflict，`npm audit --audit-level=high` 為 0，完整 lint、module-load 與 77 suites／537 tests 通過。
 - **［已修復］人工審查 PR 與 tracker 狀態延遲**：最終 `gpt-5.6-sol` high 跨 repo 覆核指出，人工審查型 Dependabot PR 若只開啟或未合併直接關閉，原本要等月排程才更新 freshness tracker；`735fcb6`（2026-07-26）讓 opened／reopened／synchronize／ready-for-review／closed 都立即 dispatch freshness，closed 只同步 tracker、不再分類或修改已關閉 PR，且全程不 checkout／執行 PR 程式碼。
 - **［已修復］PR lifecycle dispatch 失敗與 tracker 無法關閉**：PR #9 實跑顯示，無 checkout 的 `sync-freshness` 未指定 repository，`gh workflow run` 因找不到 Git context 失敗；同時 Babel 8 已核准暫緩仍永久計入 `needs_attention`。`fdb0841`（2026-07-29）明確傳入 repository，新增僅限 Babel 8 的版本化 deferral（不隱藏 7.x 更新或 Babel 9），並人工審查升級 `express-rate-limit` 8.6.1。完整 lint、module-load、77 suites／538 tests 與 `npm audit` 0 通過；freshness 本機輸出 `needs_attention=false`。
+- **［已實作，待 Production 驗收］Google 既存行程、行程提前一天與任務到期提醒**：`REMINDER_OFFSETS` 預設改為 `1440` 並保留到點提醒；Calendar inbound v3 baseline 會匯入 primary calendar 既存的未來 timed non-recurring Google-origin 行程。Baseline／incremental 以 owner-exclusive fencing claim 固定 query snapshot，每個 durable job 僅處理一頁，checkpoint 與 continuation 入列同 transaction；過期接手沿用 generation／timeMin／pageToken，舊 token no-op，僅 final page 清理未見 `inbound_origin` mapping並保存 cursor。Apply concurrency 跟隨 DB pool，增量改型／修改／刪除會安全取消或重排。另新增 `task-reminder` durable job；local／mapped Google Tasks mutation 與 job lifecycle 同 transaction，`taskVersion` fencing 防舊 processing job，Cron 會補排既有未來 due tasks。此項目前只以自動測試與本機 gate 驗證，不宣稱 LINE／Supabase／Google Production 閉環已通過。
 - 本機以 Express 5 實際啟動 HTTP server，`GET /health/live` 回 `200 {"status":"OK"}`。GitHub CI 另成功建置 production image，啟動時不傳 `APP_PORT`，驗證預設 `3000`、HTTP liveness 與 Docker `healthy` 狀態。
 
 ## 交叉覆核（Claude，2026-07-18，`6.0.0-rc.3`）

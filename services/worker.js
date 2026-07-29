@@ -8,7 +8,7 @@ import { replyMessage } from '../utils/index.js';
 import { runJob } from './jobs.js';
 import { syncGoogleCalendarEvent } from './google-calendar.js';
 import { sendGoogleCalendarStatus } from './google-calendar-status.js';
-import { sendLineReminder } from './reminders.js';
+import { sendLineReminder, sendTaskReminder } from './reminders.js';
 import { sendDailyWeather } from './weather-subscription.js';
 import { deleteGoogleTask, syncTaskToGoogle } from './google-tasks.js';
 import { handleCalendarInbound } from './google-calendar-inbound.js';
@@ -117,6 +117,7 @@ const jobHandlers = Object.freeze({
   [JOB_KINDS.GOOGLE_CALENDAR_SYNC]: handleGoogleCalendarSync,
   [JOB_KINDS.GOOGLE_CALENDAR_STATUS]: sendGoogleCalendarStatus,
   [JOB_KINDS.LINE_REMINDER]: sendLineReminder,
+  [JOB_KINDS.TASK_REMINDER]: sendTaskReminder,
   [JOB_KINDS.WEATHER_DAILY]: sendDailyWeather,
   [JOB_KINDS.GOOGLE_TASKS_SYNC]: handleGoogleTasksSync,
   [JOB_KINDS.GOOGLE_CALENDAR_INBOUND]: handleCalendarInbound,

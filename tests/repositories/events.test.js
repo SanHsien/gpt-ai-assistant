@@ -154,7 +154,7 @@ test('applyInboundEventUpdate only advances the watermark when fields are unchan
   const result = await callInbound(applyInboundEventUpdate);
   expect(result).toEqual({ applied: false, reason: 'no_change' });
   expect(query).toHaveBeenCalledTimes(2);
-  expect(query.mock.calls[1][0]).toMatch(/set provider_updated_at = \$3/i);
+  expect(query.mock.calls[1][0]).toMatch(/provider_updated_at = coalesce\(\$3/i);
   expect(enqueueJob).not.toHaveBeenCalled();
 });
 
@@ -193,6 +193,115 @@ test('applyInboundEventUpdate preserves the local timezone when Google omits it'
   });
   expect(result.applied).toBe(true);
   expect(query.mock.calls[1][1][5]).toBe('Asia/Taipei');
+});
+
+test('applyInboundEventUpdate imports a missing Google-origin event and schedules reminders', async () => {
+  const { applyInboundEventUpdate } = await load();
+  const imported = {
+    id: 'ev-google',
+    owner_id: 'owner1',
+    provider_event_id: 'google-origin-1',
+    title: inboundDraft.title,
+    start_at: inboundDraft.start,
+    end_at: inboundDraft.end,
+    timezone: inboundDraft.timezone,
+    all_day: false,
+    location: null,
+    notes: null,
+    recurrence: null,
+    status: 'confirmed',
+    sync_status: 'synced',
+    version: 1,
+  };
+  query
+    .mockResolvedValueOnce({ rows: [] }) // SELECT FOR UPDATE
+    .mockResolvedValueOnce({ rows: [imported] }) // INSERT ... ON CONFLICT
+    .mockResolvedValueOnce({ rows: [{ channel_target: { encrypted: 'target' } }] })
+    .mockResolvedValueOnce({ rows: [] }); // UPDATE reminder_job_id
+
+  const result = await callInbound(applyInboundEventUpdate, {
+    providerEventId: 'google-origin-1',
+    allowCreate: true,
+  });
+
+  expect(result).toMatchObject({ applied: true, action: 'created' });
+  expect(query.mock.calls[1][0]).toMatch(/insert into events/i);
+  expect(query.mock.calls[1][0]).toMatch(/on conflict \(owner_id, provider_event_id\)/i);
+  expect(query.mock.calls[1][0]).toMatch(/sync_status.*synced/is);
+  expect(query.mock.calls[1][1][0]).toBe('owner1');
+  expect(query.mock.calls[1][1]).toContain('google-origin-1');
+  expect(query.mock.calls[2][1]).toEqual(['owner1']);
+  expect(enqueueJob).toHaveBeenCalledWith(expect.objectContaining({
+    kind: 'line-reminder',
+    payload: expect.objectContaining({
+      ownerId: 'owner1',
+      eventId: 'ev-google',
+      channelTarget: { encrypted: 'target' },
+    }),
+    idempotencyKey: 'line-reminder:ev-google:start:1',
+  }), expect.any(Function));
+});
+
+test('applyInboundEventUpdate imports safely without a LINE target and creates no job', async () => {
+  const { applyInboundEventUpdate } = await load();
+  query
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({
+      rows: [{
+        id: 'ev-google', owner_id: 'owner1', provider_event_id: 'google-origin-1', version: 1,
+      }],
+    })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] });
+
+  const result = await callInbound(applyInboundEventUpdate, {
+    providerEventId: 'google-origin-1',
+    allowCreate: true,
+  });
+
+  expect(result).toMatchObject({ applied: true, action: 'created' });
+  expect(enqueueJob).not.toHaveBeenCalled();
+});
+
+test('unique import conflict recovers through the locked row and schedules only one updated version', async () => {
+  const { applyInboundEventUpdate } = await load();
+  query
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [{ ...syncedEvent, inbound_origin: true }] })
+    .mockResolvedValueOnce({ rows: [{ ...syncedEvent, title: '新標題', version: 2 }] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [{ channel_target: { encrypted: 'target' } }] })
+    .mockResolvedValueOnce({ rows: [] });
+  const result = await callInbound(applyInboundEventUpdate, {
+    providerEventId: 'google-origin-1',
+    allowCreate: true,
+  });
+  expect(result).toMatchObject({ applied: true, action: 'updated' });
+  expect(enqueueJob).toHaveBeenCalledTimes(1);
+  expect(enqueueJob).toHaveBeenCalledWith(expect.objectContaining({
+    idempotencyKey: 'line-reminder:ev1:start:2',
+  }), expect.any(Function));
+});
+
+test('a stale row seen in a second baseline is marked before stale policy exits', async () => {
+  const { applyInboundEventUpdate } = await load();
+  query
+    .mockResolvedValueOnce({
+      rows: [{
+        ...syncedEvent,
+        inbound_origin: true,
+        provider_updated_at: '2026-07-18T00:00:00.000Z',
+      }],
+    })
+    .mockResolvedValueOnce({ rows: [] });
+  const result = await callInbound(applyInboundEventUpdate, {
+    providerEventId: 'google-origin-1',
+    baselineGeneration: '2f8f0955-30d8-4cc4-a6f7-98a687bc5b76',
+  });
+  expect(result).toEqual({ applied: false, reason: 'stale' });
+  expect(query.mock.calls[1][0]).toMatch(/inbound_baseline_generation = \$3/i);
+  expect(enqueueJob).not.toHaveBeenCalled();
 });
 
 test('listEvents filters by owner and range', async () => {
@@ -280,6 +389,46 @@ test('deleteEventByProviderId uses the same reminder-safe deletion path', async 
   expect(sql).toMatch(/provider_event_id = \$3/i);
   expect(sql).toMatch(/update jobs/i);
   expect(params).toEqual(['owner1', null, 'google-event-1']);
+});
+
+test('baseline cleanup deletes only unseen inbound-origin rows and cancels their jobs', async () => {
+  const { deleteMissingInboundEvents } = await load();
+  query.mockResolvedValue({ rowCount: 2 });
+  await expect(deleteMissingInboundEvents(
+    'owner1',
+    '2f8f0955-30d8-4cc4-a6f7-98a687bc5b76',
+  )).resolves.toBe(2);
+  const [sql, params] = query.mock.calls[0];
+  expect(sql).toMatch(/inbound_origin = true/i);
+  expect(sql).toMatch(/inbound_baseline_generation is distinct from \$2::uuid/i);
+  expect(sql).toMatch(/line-reminder:/i);
+  expect(params).toEqual(['owner1', '2f8f0955-30d8-4cc4-a6f7-98a687bc5b76']);
+});
+
+test('reconciles future imported events that are missing reminder jobs', async () => {
+  const { reconcileInboundEventReminders } = await load();
+  query
+    .mockResolvedValueOnce({ rows: [{ channel_target: { encrypted: 'target' } }] })
+    .mockResolvedValueOnce({
+      rows: [{
+        id: 'ev1',
+        owner_id: 'owner1',
+        title: '既存行程',
+        start_at: '2099-07-20T07:00:00.000Z',
+        version: 1,
+      }],
+    })
+    .mockResolvedValueOnce({ rows: [] });
+  await expect(reconcileInboundEventReminders('owner1')).resolves.toEqual({ scheduled: 1 });
+  expect(query.mock.calls[1][0]).toMatch(/inbound_origin = true/i);
+  expect(query.mock.calls[1][0]).toMatch(/reminder_job_id is null/i);
+  expect(enqueueJob).toHaveBeenCalledWith(expect.objectContaining({
+    payload: expect.objectContaining({
+      ownerId: 'owner1',
+      eventId: 'ev1',
+      channelTarget: { encrypted: 'target' },
+    }),
+  }), expect.any(Function));
 });
 
 test('completeEvent atomically marks the event and cancels a pending reminder job', async () => {
