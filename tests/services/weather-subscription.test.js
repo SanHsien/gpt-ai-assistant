@@ -12,6 +12,7 @@ let push;
 let getWeatherByPlace;
 let formatWeather;
 let withTransaction;
+let client;
 
 const SUB = {
   id: 's1', owner_id: 'o1', latitude: 25.04, longitude: 121.56, timezone: 'Asia/Taipei', location_label: '臺北市', enabled: true,
@@ -29,7 +30,7 @@ const load = async () => {
   push = jest.fn().mockResolvedValue({ data: {} });
   getWeatherByPlace = jest.fn().mockResolvedValue({ place: SUB, forecast: {} });
   formatWeather = jest.fn().mockReturnValue('臺北市 天氣');
-  const client = { query: jest.fn().mockResolvedValue({ rows: [{ channel_target: { e: 1 } }] }) };
+  client = { query: jest.fn().mockResolvedValue({ rows: [{ channel_target: { e: 1 } }] }) };
   withTransaction = jest.fn((fn) => fn(client));
   jest.doMock('../../repositories/subscriptions.js', () => ({
     claimDueWeatherSubscriptions, getSubscription, markSubscriptionDelivered,
@@ -75,6 +76,29 @@ test('enqueueDueWeatherReminders claims due subs and enqueues one job each', asy
     kind: 'weather-daily',
     idempotencyKey: 'weather-daily:s1:2026-07-17',
   }), expect.any(Function));
+});
+
+test('enqueueDueWeatherReminders never overlaps queries on one transaction client', async () => {
+  const { enqueueDueWeatherReminders } = await load();
+  claimDueWeatherSubscriptions.mockResolvedValue([
+    SUB,
+    { ...SUB, id: 's2', owner_id: 'o2' },
+  ]);
+  let releaseFirst;
+  client.query
+    .mockReset()
+    .mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = () => resolve({ rows: [{ channel_target: { e: 1 } }] });
+    }))
+    .mockResolvedValue({ rows: [{ channel_target: { e: 2 } }] });
+
+  const pending = enqueueDueWeatherReminders({ now: new Date('2026-07-17T00:00:00Z') });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(client.query).toHaveBeenCalledTimes(1);
+  releaseFirst();
+  await expect(pending).resolves.toEqual({ claimed: 2, queued: 2 });
+  expect(client.query).toHaveBeenCalledTimes(2);
 });
 
 test('sendDailyWeather pushes the forecast and marks delivered', async () => {

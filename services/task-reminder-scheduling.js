@@ -40,21 +40,27 @@ export const scheduleTaskReminders = async ({
     })),
   ].filter(({ runAt }) => runAt.getTime() > Date.now());
 
-  const results = await Promise.all(candidates.map((candidate) => enqueueJob({
-    kind: JOB_KINDS.TASK_REMINDER,
-    payload: {
-      ownerId,
-      taskId: task.id,
-      taskVersion: task.version,
-      channelTarget,
-      ...(candidate.leadMinutes == null ? {} : { leadMinutes: candidate.leadMinutes }),
-    },
-    runAt: candidate.runAt,
-    idempotencyKey: jobKey(task.id, candidate.suffix, task.version),
-    maxAttempts: config.WORKER_MAX_ATTEMPTS,
-  }, executor)));
+  let queued = 0;
+  // executor may be one transaction client; node-postgres forbids overlapping query() calls.
+  for (const candidate of candidates) {
+    // eslint-disable-next-line no-await-in-loop
+    const job = await enqueueJob({
+      kind: JOB_KINDS.TASK_REMINDER,
+      payload: {
+        ownerId,
+        taskId: task.id,
+        taskVersion: task.version,
+        channelTarget,
+        ...(candidate.leadMinutes == null ? {} : { leadMinutes: candidate.leadMinutes }),
+      },
+      runAt: candidate.runAt,
+      idempotencyKey: jobKey(task.id, candidate.suffix, task.version),
+      maxAttempts: config.WORKER_MAX_ATTEMPTS,
+    }, executor);
+    if (job) queued += 1;
+  }
 
-  return { queued: results.filter(Boolean).length };
+  return { queued };
 };
 
 export const backfillTaskReminders = async ({

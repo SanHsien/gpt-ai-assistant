@@ -47,9 +47,12 @@ export const scheduleEventReminders = async ({
   const validCandidates = candidates.filter((candidate) => (
     Number.isFinite(candidate.runAt.getTime()) && candidate.runAt.getTime() > now
   ));
-  const results = await Promise.all(validCandidates.map(async (candidate) => ({
-    candidate,
-    job: await enqueueJob({
+  let startJobId = null;
+  let queued = 0;
+  // executor may be one transaction client; node-postgres forbids overlapping query() calls.
+  for (const candidate of validCandidates) {
+    // eslint-disable-next-line no-await-in-loop
+    const job = await enqueueJob({
       kind: JOB_KINDS.LINE_REMINDER,
       payload: {
         ownerId,
@@ -61,12 +64,15 @@ export const scheduleEventReminders = async ({
       runAt: candidate.runAt,
       idempotencyKey: jobKey(event.id, candidate.suffix, event.version),
       maxAttempts: config.WORKER_MAX_ATTEMPTS,
-    }, executor),
-  })));
-  const start = results.find(({ candidate, job }) => candidate.leadMinutes == null && job);
+    }, executor);
+    if (job) {
+      queued += 1;
+      if (candidate.leadMinutes == null) startJobId = job.id;
+    }
+  }
   return {
-    startJobId: start?.job.id || null,
-    queued: results.filter(({ job }) => job).length,
+    startJobId,
+    queued,
   };
 };
 

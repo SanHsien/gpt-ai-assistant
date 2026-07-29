@@ -284,7 +284,9 @@ export const enqueueDueCalendarInbound = async ({
   const accounts = await claimAccountsForInbound(cutoff, limit, client.query.bind(client));
   const minuteKey = now.toISOString().slice(0, 16);
   let queued = 0;
-  await Promise.all(accounts.map(async ({ owner_id: ownerId }) => {
+  // node-postgres does not support overlapping query() calls on one transaction client.
+  for (const { owner_id: ownerId } of accounts) {
+    // eslint-disable-next-line no-await-in-loop
     const job = await enqueueJob({
       kind: JOB_KINDS.GOOGLE_CALENDAR_INBOUND,
       payload: { ownerId },
@@ -292,7 +294,7 @@ export const enqueueDueCalendarInbound = async ({
       maxAttempts: config.WORKER_MAX_ATTEMPTS,
     }, client.query.bind(client));
     if (job) queued += 1;
-  }));
+  }
   return { claimed: accounts.length, queued };
 });
 

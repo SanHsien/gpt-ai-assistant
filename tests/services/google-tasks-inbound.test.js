@@ -144,6 +144,28 @@ test('enqueueDueTasksInbound claims accounts and enqueues with the prior waterma
   }), expect.any(Function));
 });
 
+test('enqueueDueTasksInbound never overlaps queries on one transaction client', async () => {
+  const { enqueueDueTasksInbound } = await load();
+  claimAccountsForTasksInbound.mockResolvedValue([
+    { owner_id: 'o1', prev: null },
+    { owner_id: 'o2', prev: null },
+  ]);
+  let releaseFirst;
+  enqueueJob
+    .mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = () => resolve({ id: 'j1' });
+    }))
+    .mockResolvedValueOnce({ id: 'j2' });
+
+  const pending = enqueueDueTasksInbound({ now: new Date('2026-07-17T05:00:00Z') });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(enqueueJob).toHaveBeenCalledTimes(1);
+  releaseFirst();
+  await expect(pending).resolves.toEqual({ claimed: 2, queued: 2 });
+  expect(enqueueJob).toHaveBeenCalledTimes(2);
+});
+
 test('handleTasksInbound advances the watermark only after a successful pull', async () => {
   const { handleTasksInbound } = await load();
   authorizedRequest.mockResolvedValue({ response: { data: { items: [] } } });

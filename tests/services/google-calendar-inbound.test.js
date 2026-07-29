@@ -547,6 +547,25 @@ test('enqueueDueCalendarInbound claims due accounts and enqueues one job each', 
   }), expect.any(Function));
 });
 
+test('enqueueDueCalendarInbound never overlaps queries on one transaction client', async () => {
+  const { enqueueDueCalendarInbound } = await load();
+  claimAccountsForInbound.mockResolvedValue([{ owner_id: 'o1' }, { owner_id: 'o2' }]);
+  let releaseFirst;
+  enqueueJob
+    .mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = () => resolve({ id: 'j1' });
+    }))
+    .mockResolvedValueOnce({ id: 'j2' });
+
+  const pending = enqueueDueCalendarInbound({ now: new Date('2026-07-17T00:00:00Z') });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(enqueueJob).toHaveBeenCalledTimes(1);
+  releaseFirst();
+  await expect(pending).resolves.toEqual({ claimed: 2, queued: 2 });
+  expect(enqueueJob).toHaveBeenCalledTimes(2);
+});
+
 test('handleCalendarInbound pulls changes for the job owner', async () => {
   const { handleCalendarInbound } = await load();
   getCalendarAccount.mockResolvedValue({ owner_id: 'o1', calendar_id: 'primary', sync_token: 'tok-1' });

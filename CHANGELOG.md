@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-07-29
+
 - 行程提前提醒預設改為一天前（`REMINDER_OFFSETS=1440`），並保留到點提醒；Calendar inbound v3 會在 baseline 匯入 primary calendar 既存的未來、非週期 timed Google-origin 行程，增量新增／修改／刪除會建立、重排／取消 LINE reminder。Baseline／incremental 皆採 owner-exclusive fencing claim 與 durable page continuation：固定 query snapshot、每 job 一頁、checkpoint 與續頁入列同 transaction，僅 final page 清理未見 `inbound_origin` mapping並保存 cursor；過期接手沿用 snapshot，舊 token no-op。Apply 以 `DATABASE_POOL_MAX` 限制併發並補排稍後才啟用提醒／LINE target 的行程。全天、週期與非 primary 匯入仍不支援。現有 `calendar.events.owned` scope 已足夠，無須擴大授權。
 - 有期限任務新增同一組提前量與到期 LINE 提醒，沿用 durable queue、安靜時段、暫停／恢復、過期跳過與 retry key。任務 mutation 與取消／重排在同一 transaction，job payload 以 `taskVersion` 擋舊 processing job；每分鐘 Cron 會 owner-scoped 補排功能上線前或提醒關閉期間建立的未來 due tasks。無期限任務不排提醒。
 - 比照 `yt_fetch` 新增依賴維護自動化：Dependabot 每週檢查 npm 與 GitHub Actions；每月 freshness workflow 盤點所有直接 npm 依賴並執行 `npm audit`，必要時建立／更新維護 issue，恢復最新且無已知漏洞後自動關閉。

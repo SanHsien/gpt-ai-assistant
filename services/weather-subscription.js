@@ -72,10 +72,13 @@ export const enqueueDueWeatherReminders = async ({
   const due = await claimDueWeatherSubscriptions(now.toISOString(), limit, client.query.bind(client));
   const runDate = now.toISOString().slice(0, 10);
   let queued = 0;
-  await Promise.all(due.map(async (sub) => {
+  // node-postgres does not support overlapping query() calls on one transaction client.
+  for (const sub of due) {
+    // eslint-disable-next-line no-await-in-loop
     const user = await client.query('SELECT channel_target FROM users WHERE id = $1', [sub.owner_id]);
     const channelTarget = user.rows[0]?.channel_target;
-    if (!channelTarget) return; // 沒有推送目標就跳過這次
+    if (!channelTarget) continue; // 沒有推送目標就跳過這次
+    // eslint-disable-next-line no-await-in-loop
     const job = await enqueueJob({
       kind: JOB_KINDS.WEATHER_DAILY,
       payload: { subscriptionId: sub.id, channelTarget },
@@ -83,7 +86,7 @@ export const enqueueDueWeatherReminders = async ({
       maxAttempts: config.WORKER_MAX_ATTEMPTS,
     }, client.query.bind(client));
     if (job) queued += 1;
-  }));
+  }
   return { claimed: due.length, queued };
 });
 

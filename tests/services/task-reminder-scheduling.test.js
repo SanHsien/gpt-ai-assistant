@@ -56,6 +56,30 @@ test('schedules due-time and configured lead reminders with versioned keys', asy
   }), undefined);
 });
 
+test('scheduleTaskReminders never overlaps enqueue calls on one transaction executor', async () => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-07-18T00:00:00Z'));
+  const { scheduleTaskReminders } = await load();
+  let releaseFirst;
+  enqueueJob.mockReset();
+  enqueueJob
+    .mockImplementationOnce(() => new Promise((resolve) => {
+      releaseFirst = () => resolve({ id: 'due-job' });
+    }))
+    .mockResolvedValue({ id: 'lead-job' });
+
+  const pending = scheduleTaskReminders({
+    ownerId: 'owner-1',
+    task: { id: 'task-1', version: 2, due_at: '2026-07-20T08:00:00.000Z' },
+    channelTarget: { encrypted: 'target' },
+    executor: query,
+  });
+  await Promise.resolve();
+  expect(enqueueJob).toHaveBeenCalledTimes(1);
+  releaseFirst();
+  await expect(pending).resolves.toEqual({ queued: 3 });
+  expect(enqueueJob).toHaveBeenCalledTimes(3);
+});
+
 test('does not schedule tasks without a future due candidate', async () => {
   jest.useFakeTimers().setSystemTime(new Date('2026-07-20T09:00:00Z'));
   const { scheduleTaskReminders } = await load();
