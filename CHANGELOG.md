@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 補強 Production LINE／Google／Supabase 驗收 runbook：AI 必須先讀既有流程、使用 LINE Windows app 與已登入 Chrome；Google OAuth 只交接必要登入步驟，完成後自動續測。新增控制狀態失效、Chrome 擴充功能 UI 阻擋、Vercel Sensitive env 遮罩、Supabase SQL Editor 精準查核、單次刪除確認、CTE 清理與全欄位歸零複核的詳細恢復步驟。
+- 2026-08-08 以 Production LINE 重驗 Google OAuth 與行程同步：唯一測試行程在 LINE 確認後只建立一筆 Google Calendar event，sync／status jobs 各執行一次成功，reminder job 成功排入後隨行程刪除取消，相關 dead job 為 0；Calendar、Supabase event／confirmation／jobs、pending 孤兒提醒與本機暫存檔均已精準清為 0。
+
 ## [6.1.0] - 2026-07-29
 
 - 行程提前提醒預設改為一天前（`REMINDER_OFFSETS=1440`），並保留到點提醒；Calendar inbound v3 會在 baseline 匯入 primary calendar 既存的未來、非週期 timed Google-origin 行程，增量新增／修改／刪除會建立、重排／取消 LINE reminder。Baseline／incremental 皆採 owner-exclusive fencing claim 與 durable page continuation：固定 query snapshot、每 job 一頁、checkpoint 與續頁入列同 transaction，僅 final page 清理未見 `inbound_origin` mapping並保存 cursor；過期接手沿用 snapshot，舊 token no-op。Apply 以 `DATABASE_POOL_MAX` 限制併發並補排稍後才啟用提醒／LINE target 的行程。全天、週期與非 primary 匯入仍不支援。現有 `calendar.events.owned` scope 已足夠，無須擴大授權。

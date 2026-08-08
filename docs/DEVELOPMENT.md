@@ -423,14 +423,125 @@ Phase 1 baseline 已接上新增、durable 追問／確認、查詢、修改、�
 
 這屬於**受監督的桌面驗收自動化**，不是可在 CI 無人執行的 headless E2E。AI 使用電腦控制工具列出並啟用 LINE 視窗、逐步擷取新畫面、點擊／輸入；另以瀏覽器控制工具核對 Google、Supabase、Vercel，以本機 shell 產生不含個資的測試音訊及執行程式 gate。桌面座標、視窗 id 與 accessibility reference 都不是穩定 API，因此每一步必須從最新畫面重新定位，不能包成會盲目重播的固定巨集。
 
-1. **先取得本輪明確授權**：傳送 LINE 訊息、上傳音訊、建立／修改／完成資料都是對外動作；AI 必須在操作當下有維護者明確同意。刪除測試資料也須另有當下確認，不因先前曾同意而推定。
-2. **唯一視窗與身分確認**：每批操作前重新列出 Windows apps，LINE app id 應為實際回傳值且只能選到一個視窗；activate 後重新擷取畫面，確認聊天標題是預期的「綠脈 AI 助理」。不可沿用舊 screenshot id、座標或 accessibility index，也不可操作其他聊天室。
-3. **一次只做一個狀態轉移**：觀察輸入框焦點後傳一則驗收訊息，立即重新擷取畫面並等待 bot 回覆；確認回覆與預期一致後才按確認／修改／完成／刪除。若輸入結果不確定，先重抓畫面，不可盲目重送，以免產生複本或額外 token 成本。
-4. **先建驗收清冊再分批執行**：記錄本輪開始／結束時間（UTC 與 `Asia/Taipei`）、每批唯一前綴、產生的本機檔案路徑，以及建立後取得的 event／task／confirmation／job id。再依 [`REVIEW.md`](../REVIEW.md) Release Gate 逐批測功能入口、Calendar、Tasks、提醒／週期、搜尋與語音。測試名稱使用唯一且可搜尋的前綴，例如 `RC 音訊驗收`；不得使用真實醫療、財務或其他敏感內容。
-5. **音訊的桌面限制**：LINE 官方 Windows／Mac 子裝置不提供原生語音訊息錄製。手機語音會產生 `audio` webhook；桌面可附加 mp3／mp4／mpeg／mpga／m4a／wav／webm。不可先假設 webhook 型別：真實 Windows 驗收中，LINE 把 WAV／MP3 附件都轉成 `audio`。rc.10 依 Content API header／magic bytes 判斷實際格式，並同時支援未轉換的 `file`；rc.11 容忍語音句首的常見「記行程」同音字。兩者都走相同 content download、OpenAI transcription、指令與行程流程。一般檔案不處理。測試音訊不得含個資，且須小於 `TRANSCRIPTION_MAX_BYTES`；TTS 測試檔可保留約 0.5 秒前導靜音，但功能不得依賴該靜音才可用。
-6. **每一層都要有證據**：LINE 確認轉錄回顯與最終訊息；Google Calendar／Tasks 確認只有一筆且狀態一致；Supabase 只查必要欄位，確認 job `done`、attempts、cursor／mapping，不把 encrypted payload、token 或 owner id 複製到文件；Vercel logs 確認對應 deployment 沒有 5xx／timeout。
-7. **正式版後集中清理**：不能只清最後一批或只看目前仍存在的行程。先回顧整個 release cycle 的驗收清冊、AI 操作紀錄與所有舊前綴／時間窗，再列出 Calendar events、Google Tasks、Supabase events／tasks／confirmations／相關 jobs／runs／processed_events 及本機產生的音訊／暫存檔。取得刪除確認後，以精準 id、唯一前綴或已確認時間窗執行；每類刪除後重查為 0。另查 `line-reminder:<event-id>:%` 是否存在已無 event 的 pending 孤兒提醒。只刪可證明屬於驗收的資料；週期 inbound cron/cursor、migration、真實資料與必要 release evidence 不刪。LINE 聊天、Vercel／GitHub／Supabase 平台 logs 等無法完整控制的紀錄必須如實註記，不能宣稱「毫無痕跡」。
-8. **收尾**：更新 `REVIEW.md` 勾選實際通過項、記錄無法由桌面驗證的邊界；跑本機 gate、確認 CI／CodeQL／文件站／Production health，再發正式 release。驗收或清理途中發現錯誤時，留在 RC，修正後重跑受影響批次。
+開始任何 UI 操作前，**必須先讀完本節**。正式驗收使用已安裝的 LINE Windows app 與維護者既有登入狀態，不要先猜 LINE Web、另開平行測試工具，或在既有 runbook 已有答案時把操作方法反問維護者。
+
+1. **一次對齊本輪授權範圍**：傳送 LINE 訊息、上傳音訊、建立／修改／完成資料都是對外動作，開始前要把本輪測試項目、測試名稱與預計清理範圍講清楚。若控制工具對刪除要求 action-time confirmation，等精確 id 全部查明後只集中詢問一次；不要在維護者已授權整輪驗收後，對每個普通中間步驟重複詢問或誤稱整輪授權失效。
+2. **唯一視窗與身分確認**：每批操作前重新列出 Windows apps，LINE app id 必須取自當下回傳且只能選到一個視窗；activate 後重新擷取畫面，確認聊天標題是預期的「綠脈 AI 助理」。不可沿用舊 screenshot id、座標或 accessibility index，也不可操作其他聊天室。
+3. **控制狀態失效要自行恢復**：遇到 `exec context not found`、stale handle 或視窗 reference 失效時，丟棄舊 handle、重建控制 session、重新載入 Windows 控制套件，再從 `list_apps`／`list_windows` 取得唯一 LINE 視窗並重新觀察。OAuth 可能另開 Chrome popup／tab；每次切換頁面、使用者接手登入、tab 被 finalize 或 handle 失效後，都要重新列舉目前 tabs／windows，依當下 title、URL 與最近開啟時間選唯一候選，再取得新的 handle，不可沿用舊 tab id。這是控制層恢復，不是產品限制，也不應中止整輪驗收。若 Chrome 顯示另一個擴充功能 UI 阻擋自動化，只請維護者關閉該彈窗；彈窗關閉後重新連線並續做，不能因此宣稱無法存取已登入的 Supabase。
+4. **一次只做一個狀態轉移**：觀察輸入框焦點後傳一則驗收訊息，立即重新擷取畫面並等待 bot 回覆；確認回覆與預期一致後才按確認／修改／完成／刪除。若輸入結果不確定，先重抓畫面，不可盲目重送，以免產生複本或額外 token 成本。
+5. **OAuth 只交接登入，完成後必須主動續測**：AI 在 LINE 傳 `連結 Google 行事曆`、確認 bot 回傳授權卡並打開外部 Chrome。若遇到 Google 登入、OTP、CAPTCHA、授權同意或瀏覽器 URL 安全判定而必須交接，只把該登入／同意步驟交給維護者。維護者回覆完成後，AI 要從目前 LINE／Chrome 狀態繼續建立測試行程、查 Google、查 Supabase、看 Vercel logs 與清理；不可把 OAuth 完成誤當成整輪驗收結束。
+6. **先建驗收清冊再分批執行**：記錄本輪開始／結束時間（UTC 與 `Asia/Taipei`）、每批唯一前綴、產生的本機檔案路徑，以及建立後取得的 event／task／confirmation／job id。再依 [`REVIEW.md`](../REVIEW.md) Release Gate 逐批測功能入口、Calendar、Tasks、提醒／週期、搜尋與語音。測試名稱使用唯一且可搜尋的前綴，例如 `SMOKE-YYYYMMDD-HHMMSS`；不得使用真實醫療、財務或其他敏感內容。
+7. **音訊的桌面限制**：LINE 官方 Windows／Mac 子裝置不提供原生語音訊息錄製。手機語音會產生 `audio` webhook；桌面可附加 mp3／mp4／mpeg／mpga／m4a／wav／webm。不可先假設 webhook 型別：真實 Windows 驗收中，LINE 把 WAV／MP3 附件都轉成 `audio`。rc.10 依 Content API header／magic bytes 判斷實際格式，並同時支援未轉換的 `file`；rc.11 容忍語音句首的常見「記行程」同音字。兩者都走相同 content download、OpenAI transcription、指令與行程流程。一般檔案不處理。測試音訊不得含個資，且須小於 `TRANSCRIPTION_MAX_BYTES`；TTS 測試檔可保留約 0.5 秒前導靜音，但功能不得依賴該靜音才可用。
+8. **每一層都要有證據**：LINE 確認轉錄回顯與最終訊息；Google Calendar／Tasks 以唯一前綴與緊縮時間窗確認只有一筆且狀態一致；Supabase 只查必要欄位，確認 job `done`、attempts、delivery、cursor／mapping，不把 encrypted payload、token、draft 全文或 owner id 複製到文件；Vercel logs 確認對應 deployment 沒有 5xx／timeout。Production health 或 Google 成功不能替代 Supabase 查核。
+9. **Supabase Production 查核走已登入 Dashboard**：Vercel 的 Sensitive `DATABASE_URL`／CA／encryption key 可能在 `vercel env pull` 只得到遮罩值，`vercel env run` 也不是可依賴的 secret 注入管道；不要把遮罩 placeholder 當成可用 connection string、反覆建立無憑證腳本或過早接受「DB 無法驗證」。優先在已登入 Chrome 開 `https://supabase.com/dashboard/`，依 **Organizations → 對應 organization → `gpt-ai-assistant` Production → SQL Editor** 進入，使用 `postgres` role 與 Primary database。SQL Editor 是 Monaco：點進 Editor、以 `Ctrl+A` 精準替換查詢、按 `Ctrl+Enter` 執行，再從 Results grid 讀結果；不要儲存含測試 id 的私人 snippet。
+
+   查核固定先 SELECT-only，再刪除與歸零複核：
+
+   ```sql
+   -- A. 執行前先把 TEST_TITLE / PROVIDER_EVENT_ID 換成本輪清冊值；不要 select payload、draft 或 owner id
+   select id::text, title, provider_event_id, status, sync_status, created_at
+   from events
+   where title = 'TEST_TITLE' or provider_event_id = 'PROVIDER_EVENT_ID';
+
+   select id::text, state, result_event_id::text, created_at
+   from confirmations
+   where draft->>'title' = 'TEST_TITLE';
+
+   -- B. 取得 EVENT_UUID 後，用完整 idempotency prefix 查 sync、status 與 reminder jobs
+   with sync_jobs as (
+     select id from jobs
+     where idempotency_key like 'google-calendar-sync:EVENT_UUID:%'
+   )
+   select id::text, kind, status, attempts, delivered_at is not null as delivered,
+          idempotency_key, created_at
+   from jobs j
+   where idempotency_key like 'line-reminder:EVENT_UUID:%'
+      or idempotency_key like 'google-calendar-sync:EVENT_UUID:%'
+      or exists (
+        select 1 from sync_jobs s
+        where j.idempotency_key like 'google-calendar-status:' || s.id::text || ':%'
+      );
+
+   -- C. 全域 pending 孤兒提醒必須為 0
+   select count(*) as pending_orphan_line_reminders
+   from jobs j
+   where j.kind = 'line-reminder' and j.status = 'pending'
+     and j.idempotency_key like 'line-reminder:%'
+     and not exists (
+       select 1 from events e
+       where j.idempotency_key like 'line-reminder:' || e.id::text || ':%'
+     );
+   ```
+
+   若 Google inbound 已先刪掉 `events`，confirmation 的 `result_event_id` 也可能因外鍵成為 `null`；此時只能用清冊中的 UTC 緊縮時間窗列出候選 jobs，再以 `google-calendar-sync:<event-uuid>:<version>`、對應 status job id 與 `line-reminder:<event-uuid>:%` 互相證明同一批資料。無法唯一證明就不刪，不能只靠「差不多那個時間」猜測。
+   bounded fallback 只列候選，不可直接拿時間窗當刪除條件：
+
+   ```sql
+   select id::text, kind, status, attempts, delivered_at is not null as delivered,
+          idempotency_key, created_at
+   from jobs
+   where created_at >= timestamptz 'UTC_START'
+     and created_at <  timestamptz 'UTC_END'
+     and kind in ('google-calendar-sync', 'google-calendar-status', 'line-reminder')
+   order by created_at;
+   ```
+
+10. **正式版後集中清理**：不能只清最後一批或只看目前仍存在的行程。先回顧整個 release cycle 的驗收清冊、AI 操作紀錄與所有舊前綴／時間窗，再列出 Calendar events、Google Tasks、Supabase events／tasks／confirmations、相關 jobs 及本機產生的音訊／暫存檔。`processed_events` 是 webhook durable dedupe authority，例行驗收不得刪除，否則同一 LINE event 可能再次被處理；`runs` 是不含對話內容的運維證據，也不列入一般清理。週期 inbound cron/cursor、migration、真實資料與必要 release evidence 同樣保留。
+
+   取得刪除 action-time confirmation 後，把 `JOB_UUID`／`EXACT_IDEMPOTENCY_KEY`／`CONFIRMATION_UUID`／`TEST_TITLE` 換成 SELECT 已證明的值，以單一 statement 原子刪除並回傳數量。每增加一筆 job 就在 `targets` 多加一個 `values` row；UUID 與 key 必須成對匹配，避免只靠時間窗誤刪：
+
+   ```sql
+   with targets(id, idempotency_key) as (
+     values ('JOB_UUID'::uuid, 'EXACT_IDEMPOTENCY_KEY'::text)
+   ),
+   deleted_jobs as (
+     delete from jobs j
+     using targets t
+     where j.id = t.id and j.idempotency_key = t.idempotency_key
+     returning j.id
+   ),
+   deleted_confirmation as (
+     delete from confirmations
+     where id = 'CONFIRMATION_UUID'::uuid
+       and draft->>'title' = 'TEST_TITLE'
+     returning id
+   )
+   select
+     (select count(*) from deleted_jobs) as deleted_jobs,
+     (select count(*) from deleted_confirmation) as deleted_confirmations;
+   ```
+
+   刪除後用相同 title、provider id、精準 job UUID 與本輪 UTC 窗複核；五欄都必須為 0。`window_dead_jobs` 只代表本輪時間窗與相關 kind，不可宣稱全系統永遠沒有 dead job：
+
+   ```sql
+   with target_jobs(id) as (
+     values
+       ('JOB_UUID_1'::uuid),
+       ('JOB_UUID_2'::uuid)
+       -- 每一筆實際刪除的 job 都必須列在這裡
+   )
+   select
+     (select count(*) from events
+       where title = 'TEST_TITLE' or provider_event_id = 'PROVIDER_EVENT_ID') as remaining_events,
+     (select count(*) from confirmations
+       where draft->>'title' = 'TEST_TITLE') as remaining_confirmations,
+     (select count(*) from jobs j
+       join target_jobs t on t.id = j.id) as remaining_jobs,
+     (select count(*) from jobs j
+       where j.kind = 'line-reminder' and j.status = 'pending'
+         and j.idempotency_key like 'line-reminder:%'
+         and not exists (
+           select 1 from events e
+           where j.idempotency_key like 'line-reminder:' || e.id::text || ':%'
+         )) as pending_orphan_line_reminders,
+     (select count(*) from jobs
+       where status = 'dead'
+         and created_at >= timestamptz 'UTC_START'
+         and created_at <  timestamptz 'UTC_END'
+         and kind in ('google-calendar-sync', 'google-calendar-status', 'line-reminder')) as window_dead_jobs;
+   ```
+11. **暫存與不可清項目要如實收尾**：如果嘗試過 CLI env pull，只能放在 GUID 命名的系統 Temp 子目錄；無論成功或失敗都在 `finally` 精準刪除，並以 `Test-Path=false` 複核。不要輸出 env 內容。LINE 聊天、Vercel／GitHub／Supabase 平台 logs 等無法完整控制的紀錄必須如實註記，不能宣稱「毫無痕跡」。
+12. **收尾**：更新 `REVIEW.md` 勾選實際通過項、將日期、唯一前綴、LINE／Google／Supabase／Vercel 證據與清理數量寫入 deploy report；跑本機 gate、確認 CI／CodeQL／文件站／Production health，再發正式 release。驗收或清理途中發現錯誤時，修正後重跑受影響批次，不能用「部署顯示 success」代替真實閉環。
 
 LINE 桌面語音限制依據：[LINE Help Center](https://help.line.me/line/desktop/pc?contentId=20007005&lang=en)。
 

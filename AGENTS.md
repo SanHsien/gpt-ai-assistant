@@ -75,6 +75,8 @@ npm run dev       # nodemon api/index.js
 
 不接受「應該可以」——面向行為的改動要用 lint + test 或本機實跑佐證。
 
+需要 AI 操作 LINE Windows app、Google OAuth、Supabase Dashboard 或 Production smoke test 時，開始前必須先讀完 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) 的「AI 操作 LINE PC 的正式驗收流程」。沿用已登入的 LINE／Chrome 狀態，控制 handle 失效時自行重新列舉與恢復；Google 登入交接完成後要主動續做 LINE、Calendar、Supabase、Vercel 與精準清理閉環，不可把中途工具限制當成產品限制或過早停止。
+
 ## 文件入口
 
 - [`README.md`](README.md) / [`README.en.md`](README.en.md)：使用者入口、功能與部署（中文為主）。
