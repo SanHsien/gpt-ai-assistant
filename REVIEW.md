@@ -1,10 +1,10 @@
 # 專案覆核
 
-最後覆核：2026-07-29，版本 `6.1.0`。
+最後覆核：2026-08-08，版本 `6.1.0`。
 
 ## 結論
 
-6.0 的程式收斂、維護基線與集中實機驗收已完成；`6.0.1` 補上正式驗收清理時發現的行程刪除與提醒一致性修正。`6.1.0` 讓 primary Google Calendar 既存的未來單次 timed 行程與有期限任務共用 LINE 提醒，並完成 Production migration、Cron、Google inbound、實際 LINE 投遞與清理閉環。
+6.0 的程式收斂、維護基線與集中實機驗收已完成；`6.0.1` 補上正式驗收清理時發現的行程刪除與提醒一致性修正。`6.1.0` 讓 primary Google Calendar 既存的未來單次 timed 行程與有期限任務共用 LINE 提醒，並完成 Production migration、Cron、Google inbound、實際 LINE 投遞與清理閉環。2026-08-08 另以 LINE Windows app 重跑 Google OAuth 與行程同步 smoke test，LINE、Calendar、Supabase、Vercel 及精準清理再次完成閉環。
 
 本次移除 serverless process-memory 去重、同步 fail-open 與 Vercel env storage。所有 webhook 必須先通過 runtime preflight 並原子寫入 Postgres；缺事件 ID、DB／migration 異常或必要金鑰缺失時回 `5xx`，讓 LINE redelivery。`bot_sources` 使用 HMAC key 與交易鎖保存 user/group 啟停狀態及原子配額，並啟用 RLS、不提供 client policy；不落地原始 LINE id、名稱或對話。
 
@@ -23,6 +23,8 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 - Vercel Production 已確認 Node `24.x`、穩定網域與 `/health/live` 回 `200`；先前 `5.13.0` ↔ RC promote／rollback 往返仍是已通過基線，正式 `6.0.0` 亦已完成部署與 health 驗證。
 - 集中實機已通過：功能感知 `指令`、嘉義市縣天氣追問、搜尋建立行程草稿、Calendar outbound 單筆建立、Google 端 timed 修改 inbound、舊／新時刻提醒各只送一次，以及 Tasks outbound、標題 inbound、完成、重開與不產生複本。
 - Production 已移除程式不再讀取的 `APP_WEBHOOK_QUEUE`。實機發現的 `每天 22:40` 顯示為 `14:40` 已由 rc.6 的確定性時區校正修復，並在後續 LINE／Google 週期閉環驗收通過。
+- **［已完成 Production 重驗］Google OAuth 與單筆行程同步**：2026-08-08 由 LINE Windows app 傳送一次 `連結 Google 行事曆`，維護者只接手 Google 登入／同意，AI 隨即續做同一輪驗收。唯一前綴 `SMOKE-20260808-213735` 的 22:22–22:37 行程只確認一次，LINE 回覆同步成功，Google Calendar 緊縮時間窗只有一筆；Supabase sync／status jobs 各 attempts 1 且 done，reminder job 排入後隨 event 刪除取消為 done、attempts 0，本輪 dead job 與 pending 孤兒提醒都是 0。Calendar event、1 筆 confirmation、3 筆 jobs 與本機 Temp 均精準清理並重查為 0。完整證據見 [2026-08-08 deploy report](.gstack/deploy-reports/2026-08-08-v6.1.0-google-oauth-smoke.md)。
+- **［已修復］Production smoke 操作流程與文件不足**：本輪一度未先讀既有 LINE PC runbook、對已授權中間步驟重複詢問、Google OAuth 交接後未主動續測、誤把 Vercel Sensitive env 遮罩與 Chrome 擴充功能 UI 阻擋視為 Supabase 不可驗，並過早接受 DB 未驗限制。`bbf2d8c`（2026-08-08）將恢復流程、OAuth 新 tab／stale handle、已登入 Supabase SQL Editor 路徑、SELECT-only audit、bounded fallback、精準 CTE delete／`RETURNING`、多 job 歸零與 Temp lifecycle 寫入權威 runbook；同時明定 `processed_events`／`runs` 保留，避免破壞 webhook dedupe 或運維 evidence。獨立 `gpt-5.6-sol` high review 最終 APPROVE。
 - **［已修復］刪除行程殘留 pending reminder**：正式驗收清理發現已刪除的行程仍有兩筆待執行提醒。根因是 `deleteEvent`／`deleteEventByProviderId` 只刪 `events`；`6b03aa3`（2026-07-22）改為原子刪除並取消該 event 的 pending reminder，涵蓋 LINE 與 Google inbound 路徑，repository／handler／inbound 聚焦測試共 91 項通過。Production 的兩筆孤兒工作及可精準界定的舊驗收資料已清除，複查為 0。
 - **［已修復］依賴 PR 與 issue 缺少處理閉環**：`8149964`（2026-07-26）新增受信任 base 政策分類、head-SHA check、必要 CI gate、核准／squash merge、固定 freshness tracker reopen／close 與合併後重驗；GitHub Actions 已允許 workflow review，`main` 已設 strict required checks、1 人核准、stale dismissal、conversation resolution、linear history及禁止 force push／delete。Dependabot PR #7、#8 經 guarded merge 自動核准合併，執行期 PR #6 經人工檢查 release notes、差異與完整 checks 後合併。
 - **［已修復］並發事件可能遺失 auto-merge queue 項目**：GitHub concurrency 只保留一筆 running 與一筆 pending，原設計可能取消另一 PR 的成功事件；`c455265`（2026-07-26）改為每次成功事件重新掃描整個 auto-merge label queue，並維持目前 head 的政策 check、required checks 與 merge-head 比對。
@@ -59,6 +61,7 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 - [x] `REMINDER_OFFSETS=60,1440`：Production 校正後，午夜行程於 23:01 收到一次「1 小時前」提醒；Supabase `lead60` job 為 done，到點 job 保持 pending。
 - [x] `6.1.0` Google-origin／task reminder：非 BOT 建立的 Google 行程由 v3 incremental 匯入並在 LINE 收到提前一天提醒；due task backfill 同樣實際送達，兩者各 1 done、0 dead，提前一小時與到點 job 的 pending 狀態符合設計。
 - [x] `0020` migration、Production Sensitive flags、每分鐘 Cron、Node 24 Vercel deployment、CI、CodeQL 與 code scanning alerts 已重驗；正式探針證明 transaction enqueue 序列化後無 pg warning，所有臨時驗收資料已清為 0。
+- [x] 2026-08-08 LINE PC Google OAuth smoke：授權後單筆行程同步、Calendar bounded search、Supabase sync／status／reminder jobs、Vercel 0 個 5xx／timeout、精準 CTE 清理與 event／confirmation／jobs／pending orphan／window dead jobs 五欄歸零均已驗證。
 - [x] rc.8 已套用 `0019` 並部署：23:39 系列模式 baseline、23:45 v2 sync token 增量輪詢都一次 done；觀察期間每分鐘 `/cron/reminders` 均為 HTTP 200，沒有新增 60 秒 timeout。
 - [x] rc.11 LINE PC 桌面音訊閉環：語音句首同音字容錯已於 2026-07-22 以 `2cbef0d` 修復；正式部署後，音訊產生原始轉錄回顯與 2026-07-23 15:00 行程草稿，確認後 LINE 回覆同步成功，Google Calendar bounded search 只找到一筆對應事件。
 
