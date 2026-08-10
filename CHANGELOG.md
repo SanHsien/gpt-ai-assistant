@@ -4,6 +4,10 @@
 
 - 補強 Production LINE／Google／Supabase 驗收 runbook：AI 必須先讀既有流程、使用 LINE Windows app 與已登入 Chrome；Google OAuth 只交接必要登入步驟，完成後自動續測。新增控制狀態失效、Chrome 擴充功能 UI 阻擋、Vercel Sensitive env 遮罩、Supabase SQL Editor 精準查核、單次刪除確認、CTE 清理與全欄位歸零複核的詳細恢復步驟。
 - 2026-08-08 以 Production LINE 重驗 Google OAuth 與行程同步：唯一測試行程在 LINE 確認後只建立一筆 Google Calendar event，sync／status jobs 各執行一次成功，reminder job 成功排入後隨行程刪除取消，相關 dead job 為 0；Calendar、Supabase event／confirmation／jobs、pending 孤兒提醒與本機暫存檔均已精準清為 0。
+- 升級執行期依賴 `google-auth-library` `^10` → `^11` 與 `axios` `^1.2.1` → `^1.19.0`（Dependabot PR #10，依政策經人工審查）。由於測試以 mock 取代 `google-auth-library`，另以原生 Node ESM 載入 `services/google-calendar.js`／`google-tasks.js` 驗證 named export 與使用中的 7 個 `OAuth2Client` API，並在 Production 以真實 LINE Google OAuth 授權完成閉環實測。
+- 安全性更新間接依賴 `undici` 6.28.0（PR #12，涵蓋三項 GHSA）與 `ip-address` 10.4.0（PR #11；其新增的 `prepare` 腳本僅設定 repo-local git hooks，且 npm 自 registry 安裝依賴時不執行 `prepare`）。
+- 依賴新鮮度歸零：`@vercel/blob` 2.7.0、`@vercel/functions` 3.9.0、`express-rate-limit` 8.6.2 範圍內更新；dev-only 的 `js-yaml` 3.15.1（CVE-2026-59870）與 `brace-expansion` 5.0.9 使 `npm audit` 由 2 high 回到 0；評估後升 `eslint` 10.8.1 與 `globals` 17.9.0。Babel 維持 Jest 30 相容的 7.x。freshness workflow 依既定條件自動關閉維護 issue。
+- 文件站同步更新 dev 依賴 `undici` 7.29.0、`js-yaml` 3.15.1 與 `postcss` 8.5.26，本機 build 通過 13 頁／362 個內部連結且 `npm audit` 為 0。
 
 ## [6.1.0] - 2026-07-29
 

@@ -137,8 +137,10 @@ npm test                # jest
 - **Run trace（Phase 0）**：每次 AI 執行記錄能力／模型／token／估算成本／耗時／狀態，不含對話內容或憑證。
 - **Durable checkpoint**：把「AI 已完成」與「LINE 已送達」拆成兩個 checkpoint，語意是 **AI 至多執行一次、送達可重試多次**——失敗重試只會重送，不會重複付費，也不會產生重複訊息。
 
-### 6.0 正式版
+### 6.x 正式版
 
+- **`6.1.0`（目前版本）**：行程提前提醒預設改為**一天前**並保留到點提醒；Calendar inbound v3 的 baseline 會匯入 primary calendar 上既存、未來、非週期且有時刻的 Google-origin 行程（包含非 bot 建立），後續增量新建／修改／刪除會建立、重排或取消 LINE 提醒；**有期限任務**也有同一組提前與到期提醒。另建立 Dependabot 分類、guarded merge 與每月依賴 freshness 的維護閉環。
+- **`6.0.1`**：修正刪除行程只移除 `events`、未同步取消待執行提醒的問題；LINE 刪除與 Google inbound 刪除改為同一原子 SQL。
 - **`6.0.0`**：Supabase durable-only runtime、Google Calendar／Tasks 雙向契約、提醒／週期／搜尋／天氣與桌面音訊入口已完成集中 LINE／Supabase／Google 驗收。語音句首「寄／紀／計／既行程」等同音辨識會安全正規化，原始轉錄仍會回顯供核對。完整證據見 [`REVIEW.md`](REVIEW.md) 與 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 - **Google contract 邊界**：Calendar outbound CRUD、mapped timed non-recurring inbound，以及 primary calendar 上未來、非週期且有時刻的 Google-origin 行程匯入已納入契約；首次 baseline 會匯入既存安全範圍，後續修改／刪除會重排／取消 LINE 提醒。Calendar 全天 inbound、週期 series／exception、非 primary calendar 匯入，以及 Tasks due 回收仍明確不支援。
 - **模型與 API 進一步升級**——首輪已完成；新模型等待實作前對官方文件重核，見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。

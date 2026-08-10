@@ -6,7 +6,7 @@
 >
 > **Tech Stack:** Node.js / Express、LINE Messaging API、OpenAI API、Supabase Postgres（含 migration；queue 優先採 pgmq 或等價 durable queue）、Vercel、Jest、ESLint。
 
-日期：2026-07-17
+日期：2026-08-08（目前發布版本 `6.1.0`）
 
 本文件是本 repo 唯一的「未來做什麼」入口，合併原本分散的個人助理、API／模型、fermi、其他參考專案與授權策略評估。開發操作見 [`DEVELOPMENT.md`](DEVELOPMENT.md)，已作成的決策見 [`DECISIONS.md`](DECISIONS.md)。
 
@@ -341,14 +341,18 @@ adapters
 - `6.0.0-rc.11`：rc.10 實機再驗顯示音訊格式已正確，但「記行程」被辨為「寄行程」時仍落入一般聊天；新增僅限語音句首的同音字／禮貌前綴正規化，原始轉錄照常回顯。
 - 後續 `6.x`：只做向後相容的功能、可靠性與文件改善；不相容契約變更另升 major。
 - `6.0.0`：RC 已在既有 Production 完成 migration、Cron、回滾演練與集中 LINE／Supabase／Google 驗收，於 2026-07-22 發布。
+- `6.0.1`：修正刪除行程未同步取消 pending reminder；LINE 與 Google inbound 刪除改為同一原子 SQL。
+- `6.1.0`：行程提前提醒預設改一天前並保留到點提醒；Calendar inbound v3 baseline 匯入 primary calendar 既存的未來 timed non-recurring Google-origin 行程；有期限任務新增同組提前與到期提醒；另建立 Dependabot／freshness 依賴維護閉環。於 2026-07-29 發布，Production 閉環已驗收。
 
 ### 6.x 相依架構遷移
 
 - [x] Express 5：已升 `5.2.1`，既有固定 route pattern、middleware、OAuth、webhook 與本機 HTTP liveness smoke 通過。
 - [x] Jest 30：Jest／`@jest/globals`／`babel-jest` 已升 30.4，原有 ESM mock／transform 與 71 suites 全數通過。
 - [x] ESLint flat config：已直接升目前穩定 ESLint 10，改用官方 recommended＋本專案明確規則，移除只支援 ESLint 7／8 的 `eslint-config-airbnb@19`，未使用 peer override。
-- [ ] Babel 8：目前 `babel-jest 30` 官方仍支援 Babel 7；Babel 8 是 ESM-only 且提高 Node patch 契約，待能移除 Babel transform 或獨立驗證 ESM config 時再升，不與 runtime framework 綁成同一變更。
-- [ ] `dotenv` 17、`html-to-text` 10 等其餘 major 依實際 migration notes 與回歸測試分批處理。
+- [x] `dotenv` 17：已升 `^17.4.2`；17 預設輸出啟動訊息會污染結構化 log，初始化時明確設為 quiet。
+- [x] `html-to-text` 10：已升 `^10.0.0`，網址摘要抽取行為與既有測試相容。
+- [x] `google-auth-library` 11：已升 `^11.0.0`（2026-08-08 經人工審查合併 Dependabot PR #10，同批含 `axios` `^1.19.0`）。測試會 mock 此套件，故另以原生 Node ESM 實際載入 `services/google-calendar.js`／`google-tasks.js` 驗證 named export 與 7 個使用中的 `OAuth2Client` API，並於 Production 以真實 LINE Google OAuth 授權閉環實測通過。
+- [ ] Babel 8：目前 `babel-jest 30` 官方仍支援 Babel 7；Babel 8 是 ESM-only 且提高 Node patch 契約，待能移除 Babel transform 或獨立驗證 ESM config 時再升，不與 runtime framework 綁成同一變更。此暫緩已在 freshness tracker 設版本邊界，仍會提醒 7.x 更新與 Babel 9。
 
 ### M1 真實環境驗收矩陣（2026-07-17）
 

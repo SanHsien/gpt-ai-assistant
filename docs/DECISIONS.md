@@ -2,6 +2,12 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-08-08 — 執行期 major 依賴的審查證據標準
+
+- **決定**：當測試以 mock 取代某個執行期依賴時，CI 綠燈**不算**該依賴 major 升級的驗證證據；合併前必須另外提供三項：實際安裝目標版後列舉程式使用中的 API 是否齊備、以**原生 Node ESM** 直接 `import` 相關模組確認 export 可解析、以及 `engines` 與本專案 Node 基線相容。`google-auth-library` `^10`→`^11`（PR #10）即依此標準審查後合併，並於 Production 以真實 LINE Google OAuth 授權閉環完成最終驗證。
+- **理由**：`google-auth-library` 在 `tests/services/*.js` 以 `jest.doMock` 完全替換，測試不會載入真實套件；先前 `rrule` 正是 CommonJS 在 Vercel Node ESM runtime 不提供 named export、造成 function 啟動即失敗的同類問題，而該問題同樣無法由 Jest 察覺。`npm run test:module-load` 已把此檢查納入 CI，但只涵蓋既有清單中的模組，新增或升級套件時仍需針對該模組手動確認。
+- **邊界**：dev-only 依賴與間接 lockfile 更新維持既有 guarded merge 政策，不套用此加強標準；供應鏈方面另檢視新增的安裝腳本（npm 自 registry 安裝依賴時不執行 `prepare`，僅 `preinstall`／`install`／`postinstall` 需關注）與發布者是否為既有維護者或 trusted publishing。
+
 ## 2026-07-26 — 依賴更新審查與 issue 閉環
 
 - Dependabot PR 先由受信任 base commit 的政策程式分類，政策結論綁定 PR head SHA；`pull_request_target` 不執行 PR 內程式碼。
