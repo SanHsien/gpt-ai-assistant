@@ -1,88 +1,124 @@
 # AGENTS.md
 
-給 Codex 與其他 AI coding agents 在本專案工作時的指引。Claude Code 專屬補充見 [`CLAUDE.md`](CLAUDE.md)，兩者主要規則一致。
+本檔是 **SanHsien/gpt-ai-assistant** 的 AI coding agent 主要維護規則。Claude 專屬薄入口見 [`CLAUDE.md`](CLAUDE.md)，快速索引見 [`SKILL.md`](SKILL.md)；衝突時以本檔為準。
 
-## 專案宗旨
+## 專案定位
 
-`gpt-ai-assistant` 是一個 LINE 個人助理：透過 LINE Messaging API 收訊息，串接 OpenAI API 產生文字回覆、GPT Image 生圖與影像理解，並可經 SerpAPI 搜尋、Supabase 保存 durable 狀態及 Google Calendar 管理行程。以 serverless（Vercel 優先）方式部署，使用者自架、自備 API key 與 LINE channel。
+**GPT AI Assistant** 是可自架的 LINE 個人助理。LINE 是主要使用介面，OpenAI 是預設 AI provider；Supabase 提供 durable runtime，Google Calendar／Tasks、SerpAPI、Open-Meteo 等依功能設定整合。
 
-本 repo 源自 [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant)（MIT），現為獨立維護 repository。
+本專案衍生自 [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant)，保留 MIT License 與 attribution，現由 SanHsien 獨立維護。
 
-## 本專案的方向
+## 硬性產品邊界
 
-- **核心不變**：保留 OpenAI + LINE、自架、自備 API key；不整套重寫，也不任意更換預設供應商。
-- **已核准方向**：`5.0.0` 已完成 M1 真實 LINE 閉環；`6.0.0` 已完成 Supabase durable-only runtime、固定 queue、migration preflight、Google provider contract、最多 13 個 feature-aware LINE 快捷入口、完整 `指令` 清單、Node 24 container healthcheck、Express 5／Jest 30／ESLint 10 維護基線、Google Tasks dead sync job 安全恢復、週期行程當地鐘點校正、Google request／cron drain time budget、Calendar inbound 非展開系列同步，以及 LINE 桌面音訊檔轉錄、實際 content type 判斷與語音指令同音字容錯，並已通過集中 LINE／Google 驗收。`6.1.0` 再加上行程提前一天預設提醒、Calendar inbound v3 匯入 primary calendar 既存的未來 timed non-recurring Google-origin 行程、有期限任務提醒，以及 Dependabot／freshness 依賴維護閉環。進階能力仍不可跳過 scheduler、delivery idempotency、recurrence round-trip 與衝突政策各自堆疊。
-- 模型／API、fermi、參考專案與授權邊界也統一維護在 [`docs/ROADMAP.md`](docs/ROADMAP.md)；不要直接合併 fermi 原始碼。
-- 未來可能的 Claude 版助理仍是候選，可能開新專案或在此 repo 分支，方式待定。
-- **已排除方向**：不要嘗試用 OpenAI / ChatGPT 訂閱 OAuth 取代 API key；官方目前將 ChatGPT 訂閱與 API usage 分開計費與管理，Codex 的 ChatGPT sign-in 也不是第三方 server-side bot 可用的 API OAuth。
-- **授權策略**：目前維持 MIT，不立即轉 FSL-1.1-MIT；直接併入 FSL / GPL / 未授權專案原始碼前先看 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
-- 不要把 OpenAI 換成其他預設供應商、不要引入 Anthropic SDK、不要動搖「使用者自架、自備金鑰」的本質。
+- **LINE-first**：不要為了抽象化而改造成多頻道平台。
+- **OpenAI-default**：未有明確產品決策前，不替換預設 AI provider，也不直接引入其他 provider SDK。
+- **Self-hosted / BYO keys**：憑證、模型、webhook、資料庫與第三方服務設定一律走環境變數，不寫死個人值。
+- 不提交 API key、token、`.env`、LINE secret、OpenAI／SerpAPI／Google／Supabase 憑證或任何私密資料。
+- 不移除上游 MIT／attribution；來源與第三方聲明以 [`NOTICE.md`](NOTICE.md) 為準。
+- 不宣稱 LINE、OpenAI、Google、Supabase、Vercel 或其他服務官方背書。
+- 保留 durable queue、webhook idempotency、delivery checkpoint、migration preflight 與 fail-closed 原則；不要為了簡化流程退回 process-memory 或 fail-open runtime。
+- 不新增不必要的原始 LINE user id、名稱或長期對話內容保存。既有 HMAC identifier、加密 job payload 與結構化持久狀態的邊界不可在未評估下放寬。
+- Google Calendar／Tasks 的支援範圍以既有 contract 為準；不要把尚未支援的 all-day／recurrence inbound、非 primary 匯入或 Tasks due reclaim 當成已完成能力。
 
-## 硬性邊界
+## 架構地圖
 
-- 不提交 API key、token、`.env` / `.env.*`、LINE channel secret、OpenAI/SerpAPI 金鑰或任何私密憑證。
-- 不移除 MIT 授權與對 `memochou1993/gpt-ai-assistant` 的 attribution；見 [`NOTICE.md`](NOTICE.md)。
-- 不把預設模型／金鑰／webhook 路徑寫死成特定人的值；一律走環境變數（見 `config/index.js` 與 `.env.example`）。
-- 不宣稱本專案為 LINE、OpenAI 或任何服務官方或背書。
-- 不在未確認方向前，替換 AI 供應商或大改指令協定。
-- 不把使用者對話內容、LINE user id 等個資落地或外傳。
-
-## 架構速覽
-
-```text
-LINE 使用者 ──▶ LINE Messaging API ──▶ webhook（Vercel serverless / 本機 Express）
-                                              │
-                                     api/index.js（入口）
-                                              │
-                                     app/（事件 → context → handlers/commands）
-                                              │
-                        ┌─────────────────────┼─────────────────────┐
-                        ▼                      ▼                     ▼
-                   OpenAI API       SerpAPI       Supabase / Google Calendar
-              （completion/image/vision）              │
-                                                       ▼
-                                                   LINE reply
-```
-
-- `api/index.js`：serverless / server 入口，掛 webhook。
-- `app/`：事件處理核心——`app.js` 收 LINE events，`context.js` 建 context，`handlers/` 與 `commands/` 實作各指令（talk / draw / search / sum / analyze / translate / continue / retry / forget / report / version / deploy / doc…）。
-- `config/index.js`：所有環境變數的單一讀取點（凍結物件）。
-- `utils/`、`services/`（OpenAI / LINE / SerpAPI / Google Calendar / queue）、`repositories/`（Supabase data access）、`app/models/`（bot / event / context 模型）。
+- `api/`：HTTP / Vercel serverless 入口、webhook
+- `app/`：LINE event → context → handlers / commands
+- `services/`：OpenAI、LINE、Google、queue、reminders、weather、search 等服務
+- `repositories/`：Supabase data access
+- `db/`：migrations / rollbacks
+- `contracts/`：跨服務契約與能力邊界
+- `config/index.js`：環境變數單一讀取點
+- `tests/`：Jest 回歸測試
+- `tools/`：依賴 freshness / Dependabot policy 等維護工具
 
 ## 開發原則
 
-- 改行為前先讀 `config/index.js`，確認相關開關與預設值。
-- 新增指令依現有 `handlers/` + `commands/` 模式擴充，別另立平行架構。
-- 動到金鑰、webhook、部署流程時，同步更新 `.env.example` 與 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。
-- 使用繁體中文回覆與撰寫維護文件；程式碼、變數、commit message 維持英文。
-- 面向使用者的說明改 README（中文版為主）；架構與部署細節進 `docs/DEVELOPMENT.md`；重要取捨進 `docs/DECISIONS.md`。
+- 一般變更走 **branch → PR → CI → merge**，不要直接在 `main` 上堆工作。
+- 改行為前先讀 `config/index.js` 與相關 service / repository / contract，確認 feature flag、預設值與 durable 路徑。
+- 新增 LINE 指令時沿用既有 `handlers/` + `commands/` 模式；不要另建平行 command framework。
+- 會造成付費 API 呼叫的流程要維持「運算完成」與「LINE 送達」分離，重試不得無意重跑付費工作。
+- 資料寫入、queue claim、Google sync、reminder lifecycle 等一致性修改要優先補 repository / service 級回歸測試。
+- 修改 migration 時，保留 forward migration、preflight 與 rollback 的一致性，不改寫已發布 migration 的歷史語意。
+- 不為了「更完整」主動增加新的 governance workflow；目前 CI、CodeQL、Dependabot 與 dependency-freshness 已足夠。
+- 純文件／維護規則整理不需要機械式 bump 版本。
 
-## 驗證方向
+## 文件 source of truth
 
-改動後至少確認：
+### 使用者文件：`SanHsien/gpt-ai-assistant-docs`
+
+獨立文件 repo 是以下內容的權威來源：
+
+- 安裝
+- 部署
+- 環境變數與第三方服務設定
+- Google OAuth 操作
+- 使用方式
+- 疑難排解
+
+本 repo 的 README 只做產品入口與必要快速開始，不複製完整使用者手冊。
+
+### 本 app repo
+
+本 repo 是以下內容的權威來源：
+
+- runtime 行為與程式契約
+- API / provider contract
+- DB migrations / rollbacks
+- 架構與開發流程
+- 技術決策
+- release implementation / evidence
+
+文件分工：
+
+- `README.md` / `README.en.md`：產品入口、能力與必要安全／部署摘要
+- `docs/DEVELOPMENT.md`：runtime 架構、開發、部署實作與驗證
+- `docs/ROADMAP.md`：產品範圍、Google contract、未來與明確不做
+- `docs/DECISIONS.md`：耐久性技術／產品決策
+- `REVIEW.md`：最新 evidence-based 覆核與未驗證項
+- `CHANGELOG.md`：正式版本歷史
+- `NOTICE.md`：來源、授權與第三方聲明
+
+只更新**真正受此次變更影響**的文件；不要要求每次 commit 都同步 README、ROADMAP、REVIEW、CHANGELOG、DECISIONS 與文件站全套。
+
+### REVIEW.md 規則
+
+`REVIEW.md` 是最新覆核快照，不是每個 bug 的強制流水帳。
+
+- 若此次工作直接修復 `REVIEW.md` 已追蹤的問題，更新對應狀態與證據。
+- 若新發現的問題會實質改變目前風險／驗證結論，更新 `REVIEW.md`。
+- 一般 bug fix 若已有測試、PR 與 CHANGELOG／commit evidence，**不因規則本身而新增 REVIEW bookkeeping**。
+
+## 驗證
+
+一般程式變更至少執行：
 
 ```bash
 npm ci
-npx eslint .      # ESLint flat config；無 npm script，直接跑
-npm test          # jest
+npx eslint .
+npm run test:module-load
+npm test
 ```
 
-必要時本機起服務手動打 webhook：
+CI 另外會：
 
-```bash
-npm run dev       # nodemon api/index.js
-```
+- 建立 production Docker image
+- 啟動容器
+- 驗證 `/health/live`
+- 驗證 image healthcheck
 
-不接受「應該可以」——面向行為的改動要用 lint + test 或本機實跑佐證。
+依變更範圍追加：
 
-需要 AI 操作 LINE Windows app、Google OAuth、Supabase Dashboard 或 Production smoke test 時，開始前必須先讀完 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) 的「AI 操作 LINE PC 的正式驗收流程」。沿用已登入的 LINE／Chrome 狀態，控制 handle 失效時自行重新列舉與恢復；Google 登入交接完成後要主動續做 LINE、Calendar、Supabase、Vercel 與精準清理閉環，不可把中途工具限制當成產品限制或過早停止。
+- migration / durable runtime：`npm run db:migrate`、`npm run db:preflight` 與對應 migration/repository tests
+- dependency policy：`npm run check:dependencies` / `npm run check:dependabot-policy`
+- Production LINE / Google / Supabase / Vercel 實機流程：先讀 `docs/DEVELOPMENT.md` 的正式驗收 runbook，且未完成的外部驗證要明確標示，不得用「應該可用」代替證據
 
-## 文件入口
+## 完成條件
 
-- [`README.md`](README.md) / [`README.en.md`](README.en.md)：使用者入口、功能與部署（中文為主）。
-- [`REVIEW.md`](REVIEW.md)：最新一次 evidence-based 專案覆核、release gate 與未驗證項（只留最新版）。**修 bug 必回註（適用所有 AI agent：Claude、Codex 等，維護者 2026-07-19 指示）**：每修復 REVIEW.md 列出的問題，須回到對應項目標註修復 commit hash 與日期；修復過程中額外發現並修掉的 bug 也要補註。REVIEW 維持 latest-only，但修復狀態必須跟上現況。
-- [`docs/ROADMAP.md`](docs/ROADMAP.md)：產品階段、Phase 狀態、模型／API、參考架構與授權邊界。
-- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)：架構、本機指令、環境變數、部署（Vercel 優先）。
-- [`docs/DECISIONS.md`](docs/DECISIONS.md)：決策紀錄。
-- [`NOTICE.md`](NOTICE.md)：上游來源、MIT 授權與第三方聲明。
-- [`CHANGELOG.md`](CHANGELOG.md)：版本變更（沿用上游格式）。
+提交前確認：
+
+1. 沒有突破 LINE-first、OpenAI-default、自架／BYO keys 與 durable runtime 邊界。
+2. 相關測試、lint、module-load 或 runtime preflight 已按變更範圍通過。
+3. 沒有秘密、個資、production token 或測試殘留進 repo。
+4. 只更新必要文件；使用者部署／操作細節若有變更，同步到 `gpt-ai-assistant-docs` 的權威頁面。
+5. PR 清楚列出使用者可見影響、資料／同步風險、驗證結果與未驗證範圍。
