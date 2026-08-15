@@ -1,150 +1,192 @@
 # GPT AI Assistant
 
-[![Release](https://img.shields.io/github/v/release/SanHsien/gpt-ai-assistant?sort=semver)](https://github.com/SanHsien/gpt-ai-assistant/releases)
+[![Release](https://img.shields.io/github/v/release/SanHsien/gpt-ai-assistant?sort=semver)](https://github.com/SanHsien/gpt-ai-assistant/releases/latest)
 [![CI](https://github.com/SanHsien/gpt-ai-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/SanHsien/gpt-ai-assistant/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/SanHsien/gpt-ai-assistant/actions/workflows/codeql.yml/badge.svg)](https://github.com/SanHsien/gpt-ai-assistant/actions/workflows/codeql.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Node.js 24](https://img.shields.io/badge/node-24-339933.svg)](package.json)
-[![Platform: LINE](https://img.shields.io/badge/platform-LINE-00B900.svg)](https://developers.line.biz/)
-[![Powered by OpenAI](https://img.shields.io/badge/AI-OpenAI-412991.svg)](https://platform.openai.com/)
-[![Tests: Jest](https://img.shields.io/badge/tests-jest-blueviolet.svg)](tests)
-[![Deploy: Vercel](https://img.shields.io/badge/deploy-Vercel-000000.svg)](https://vercel.com/)
+[![Node.js 24](https://img.shields.io/badge/Node.js-24-339933.svg)](package.json)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[繁體中文](README.md) | [English](README.en.md)
+[繁體中文](README.md) · [English](README.en.md) · [Documentation](https://sanhsien.github.io/gpt-ai-assistant-docs/en/) · [Latest Release](https://github.com/SanHsien/gpt-ai-assistant/releases/latest)
 
-`GPT AI Assistant` is a chatbot that connects the **OpenAI API** with the **LINE Messaging API**. Once deployed, you can chat with your own AI assistant right inside the LINE mobile app — conversation, image generation, image understanding, and web search, all in the LINE chat.
+**GPT AI Assistant** is a self-hosted **personal AI assistant for LINE**. Deploy it with your own LINE, OpenAI, and Supabase configuration, then chat, send voice or images, search the web, manage events and tasks, receive reminders, and check weather without leaving LINE.
 
-This repository originated from [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant) (MIT) and is now independently maintained by SanHsien. The Traditional Chinese [`README.md`](README.md) is the primary document.
+It is more than a chat wrapper. LINE is the user interface, while a **durable queue and persistent assistant state** provide the reliability layer behind the bot. Paid AI work and LINE delivery use separate checkpoints, events and tasks survive serverless restarts, and Google Calendar / Tasks can be connected when needed.
 
-## What it is
+> **For installation, environment variables, Google OAuth, user workflows, and troubleshooting, use the [documentation site](https://sanhsien.github.io/gpt-ai-assistant-docs/en/).** The `docs/` directory in this repository focuses on runtime behavior, architecture, data contracts, migrations, technical decisions, and release implementation.
 
-- **Native LINE experience** — no separate app; talk to your assistant in LINE.
-- **Self-hosted, bring-your-own keys** — deploy with your own OpenAI and LINE channel credentials; data and billing stay yours.
-- **Serverless deployment** — Vercel-first, one-click deploy (local Node or Docker also supported).
-- **Command-based features** — beyond chat: image generation, vision, search, translation, scheduling, and summarize/analyze commands.
+## Who it is for
 
-## Features
+- People who want their own AI assistant **inside LINE**, rather than another chat application.
+- Users comfortable self-hosting and bringing their own OpenAI, LINE, and Supabase credentials and billing.
+- People who need more than chat: **events, tasks, reminders, search, voice, images, and weather**.
+- Developers who care about webhook idempotency, durable jobs, retries, and explicit data boundaries in serverless environments.
 
-| Category | What it does |
-|------|----------|
-| 💬 Chat | Continuous conversation (`talk`); `continue`, `retry`, `forget` |
-| 🎙️ Voice | Send a LINE voice message, or attach an mp3/mp4/mpeg/mpga/m4a/wav/webm file from Windows/macOS; OpenAI speech-to-text (default `gpt-4o-mini-transcribe`) handles it as normal input, including **voice-created events**. The confirmation card echoes "🎤 Heard: ..."; `TRANSCRIPTION_MAX_BYTES` defaults to 25 MiB |
-| 🎨 Draw | Generate images from a text prompt (`draw`, default GPT Image 2) |
-| 👁️ Vision | Send an image for the AI to understand and describe (default `gpt-4o`) |
-| 🔍 Search | Web search via SerpAPI (`search`) with a "📎 Sources" list (title/source/date/link; shown only, never fed into the prompt) |
-| 🗓️ Schedule and reminders | Create an event (text or voice) with `Schedule ...` or a date-led statement such as `7/20 3 PM dental follow-up`. Ambiguous time prompts one focused question; event editing, overlap warnings, one-day-ahead and at-time reminders, completion, deletion, and authorized Google Calendar updates are supported. **Inbound sync** (`ENABLE_GOOGLE_CALENDAR_INBOUND`) also imports existing future one-off timed events from the primary calendar even when they were not created by the bot, then reschedules or cancels LINE reminders after Google-side changes. Reminders honor `Quiet hours 22-8` and `Pause reminders`/`Resume reminders` |
-| ✅ Tasks | An assistant todo list stored independently in the Supabase `tasks` table. With `ENABLE_GOOGLE_TASKS`, create/complete/reopen/delete sync to Google Tasks (shared Calendar OAuth); with `ENABLE_GOOGLE_TASKS_INBOUND`, Google-side completion/reopen, deletion, title, and notes are reclaimed back (due is not reclaimed — the precise deadline stays authoritative locally). Tasks with a due time send LINE reminders one day ahead and at the deadline by default; lifecycle changes cancel or reschedule them. `Add task urgent submit report tomorrow #work` parses due date, priority, and `#tags`; use `My tasks` with `today/tomorrow/this week/next week/overdue/completed/#tag` filters, pagination, and one-tap complete, reopen, or delete (`ENABLE_TASKS`, off by default, needs `DATABASE_URL`) |
+The production acceptance baseline is currently **Traditional Chinese (`zh_TW`) + LINE + OpenAI**. English and Japanese interfaces can run, but natural-language date parsing, weather formatting, and some intent recognition remain Chinese-oriented and should be treated as experimental localization.
 
-Task date aliases are resolved in the user's timezone. A broad `this week` deadline without a weekday is fixed to Sunday at 09:00; `next week` uses the following Sunday, so the model cannot pick an arbitrary day.
-| 🌤️ Weather | Current conditions and forecasts (`Weather Taipei`); Taiwan place shorthand completion and same-name disambiguation, plus daily subscription push (`Daily weather Taipei 8`, `ENABLE_WEATHER_PUSH`). Data from Open-Meteo (free, no API key) with short-term caching (`ENABLE_WEATHER`, off by default) |
-| 🌐 Translate | Translate to English / Japanese (`translate`) |
-| 🧠 Summarize / Analyze | `sum` (advise, comfort, encourage…) and `analyze` (literary, mathematical, philosophical, psychological…) |
-| ⚙️ System | `activate` / `deactivate`, `version`, `report`, `deploy` (self-redeploy), `doc` |
+## Core capabilities
 
-> Send `Command` to receive a grouped list of commands and examples generated from the features enabled on that deployment. The docs site provides the extended feature reference.
+| Area | What it does |
+| --- | --- |
+| AI chat | Continuous conversation, continue, retry, and forget; models are configurable through environment variables |
+| Voice and images | LINE voice/common audio transcription, image understanding, and GPT Image generation |
+| Search and URLs | SerpAPI web search; optional SSRF-safe URL summarization; search replies include source links |
+| Events | Natural-language create/edit/complete/delete, conflict warnings, recurring schedules, and LINE reminders |
+| Google Calendar | Authorized outbound CRUD plus safe-scope inbound sync for timed non-recurring events on the primary calendar |
+| Tasks | Supabase-backed todos with due dates, priority, tags, filters, complete/reopen/delete, and deadline reminders |
+| Google Tasks | Optional outbound/inbound state synchronization; precise due-time authority remains local |
+| Weather | Open-Meteo current conditions, forecasts, and optional daily weather push without another API key |
+| LINE UX | Feature-aware Quick Replies, confirmation cards, postbacks, quiet hours, and pause/resume reminders |
 
-General replies attach up to 13 feature-aware LINE quick replies: `Schedule`, `My events`, `Add task`, `My tasks`, `Weather`, `Daily weather`, `Search`, `Draw`, `Link Google Calendar`, `Pause reminders`, `Resume reminders`, `Forget`, and `Command`. LINE renders quick replies as a single horizontal strip; the bot can't force a second row. Forks that want a persistent two-row mobile launcher can optionally configure the recommended 3×2 LINE Official Account rich menu described in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#line-quick-replies-and-optional-rich-menu).
+Feature flags can disable higher-cost or optional capabilities such as image generation, transcription, vision, search, tasks, weather, and Google integrations. See the [documentation](https://sanhsien.github.io/gpt-ai-assistant-docs/en/) and [`.env.example`](.env.example) for the authoritative configuration list.
 
-`APP_LANG` accepts `zh_TW`, `zh`, `zh_CN`, `en`, and `ja`. Only `zh_TW` is fully accepted and production-supported today. `zh` and `zh_CN` currently reuse Traditional Chinese strings rather than a Simplified Chinese pack. English and Japanese start successfully and cover the main commands and Google OAuth pages, but weather formatting and natural-language date/intent parsing remain Chinese-oriented; treat them as experimental rather than complete localized deployments.
+## What using it feels like
 
-Google Calendar synchronization retries automatically up to three attempts in the background. The bot announces success only after Google accepts the event. A final failure offers **Retry sync**, **Not now**, and **Delete event**. Not now keeps the Supabase event and stops prompting; use `Failed syncs` later, then `Retry sync <ID>` or `Delete event <ID>`. Nothing is deleted without an explicit delete action.
+Inside LINE, you can send natural requests such as:
 
-Schedule shortcuts use LINE postbacks. The conversation shows natural labels such as **Confirm event** or **Complete event 2**; list actions include the current row number, while confirmation tokens, Supabase UUIDs, and Google event ids stay in hidden postback data. Text commands containing `<ID>` remain available only as a manual troubleshooting fallback.
+```text
+Tomorrow at 3 PM dental follow-up
+Add task urgent submit report tomorrow #work
+Weather Taipei
+Search for this week's important OpenAI news
+```
 
-An incomplete event remains a durable structured draft, never raw conversation text. The next natural-language answer continues it across serverless instances. Date-only statements become all-day events; vague periods such as "tomorrow afternoon" prompt for an exact time. `Edit event` lists editable local mappings and confirms the revised draft before applying it. Optimistic version checks reject stale overwrites, while overlap detection warns and leaves the final choice to the user.
->
-> Each capability can be turned off individually for cost control (all on by default): `ENABLE_IMAGE_GENERATION`, `ENABLE_TRANSCRIPTION`, `ENABLE_VISION`, `ENABLE_SEARCH`.
+When an event is incomplete, the assistant asks for the missing detail before writing anything. A complete draft must be confirmed first. If Google synchronization later fails, the local record is retained and the bot offers retry, defer, or delete instead of silently discarding state.
 
-## Quick start (Vercel-first)
+LINE voice messages and supported audio attachments are transcribed and then enter the same input pipeline as text. Event confirmation echoes the transcript so users can distinguish a transcription mistake from a scheduling-parsing mistake.
 
-1. **Get your keys** — OpenAI, LINE, SerpAPI (or disable search), plus a Supabase pooler URL, CA, and data-encryption key.
-2. **Deploy to Vercel** — import this repo and set all required runtime variables as Production Sensitive values.
-3. **Migrate and preflight** — run `npm run db:migrate` through `0020`, then `npm run db:preflight`.
-4. **Set the LINE webhook** — point your LINE channel's Webhook URL to `{your-url}/webhook` and enable it.
-5. **Start chatting** — add the LINE official account as a friend and send a message.
+## Reliability and data boundaries
 
-Version 6.0 requires Supabase Postgres with migrations `0001`–`0020`; there is no synchronous or Vercel-environment storage fallback. Health checks and webhooks fail closed when durable configuration, the database, or migrations are unavailable. Reminders also require Supabase Cron to call the protected worker endpoint every minute. Enable tasks and weather with `ENABLE_TASKS` and `ENABLE_WEATHER`. Google Calendar and Tasks additionally require a Web OAuth client, Vercel Production Sensitive environment variables, and both **Google Calendar API** and **Google Tasks API** enabled in the same Google Cloud project; granting the Tasks OAuth scope does not enable its API. Follow the deployment checklist in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#完整上線順序): enable APIs, apply migrations, and configure Cron before enabling flags and redeploying. After enabling `ENABLE_GOOGLE_TASKS`, send `Connect Google Calendar` again to grant the Tasks scope and backfill existing unsynced tasks. If synchronization previously failed because the API was disabled, enable it and reconnect; `rc.5` safely revives the same dead sync job instead of creating another task.
+The engineering focus is not only answer quality. The runtime is designed to avoid duplicate paid work, duplicate replies, and lost state in serverless execution:
 
-See [`.env.example`](.env.example) for the full variable list and `config/index.js` for defaults.
+- Webhooks pass durable preflight and idempotent persistence before processing; missing required configuration, database failures, or stale migrations fail closed so LINE can redeliver.
+- **AI completed** and **LINE delivered** are separate checkpoints. Delivery retries resend saved output instead of rerunning paid AI work.
+- Durable job payloads are encrypted. User/group state uses deployment-scoped HMAC identifiers rather than storing raw LINE user ids or names.
+- General conversation text is not treated as a permanent profile database; persistent storage is reserved for structured assistant state, jobs, and necessary operational records.
+- Google Calendar / Tasks are used only after the user completes OAuth authorization for the relevant scopes.
+
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md), [`docs/DECISIONS.md`](docs/DECISIONS.md), and [`REVIEW.md`](REVIEW.md) for the full runtime, security, and evidence details.
+
+## Google integration boundaries
+
+Calendar currently supports outbound management of bot-managed events plus safe-scope inbound synchronization for **future, timed, non-recurring** events on the primary calendar. These remain intentionally outside the complete inbound contract:
+
+- all-day Calendar events
+- recurring series / exceptions
+- non-primary calendar imports
+- Google Tasks due-date reclamation
+
+These are explicit product boundaries, not failures of the normal LINE event/task workflows. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the detailed contract.
+
+## Quick start
+
+### 1. Prepare services
+
+A basic deployment needs:
+
+- a LINE Messaging API channel
+- an OpenAI API key
+- Supabase Postgres
+- Node.js 24
+- Vercel (recommended), or another Node/Docker-capable host
+
+Search, Google Calendar / Tasks, and image Blob delivery require additional configuration.
+
+### 2. Install and preflight
+
+```bash
+git clone https://github.com/SanHsien/gpt-ai-assistant.git
+cd gpt-ai-assistant
+npm ci
+cp .env.example .env
+npm run db:migrate
+npm run db:preflight
+```
+
+### 3. Deploy and configure the LINE webhook
+
+After deployment, point the LINE channel Webhook URL to:
+
+```text
+https://YOUR_HOST/webhook
+```
+
+Before production use, verify migrations, Cron, Production Sensitive environment values, and any APIs/OAuth required by enabled features. **Do not infer the full deployment sequence from this README**; follow the [complete deployment documentation](https://sanhsien.github.io/gpt-ai-assistant-docs/en/).
 
 ## Local development
 
-Node.js 24 is required.
-
 ```bash
 npm ci
-cp .env.example .env    # fill in your keys
-npm run dev             # nodemon Express server
-npx eslint .            # ESLint flat config
-npm test                # jest
+cp .env.example .env
+npm run dev
+npx eslint .
+npm run test:module-load
+npm test
 ```
 
-The LINE webhook needs a publicly reachable HTTPS URL — use ngrok / cloudflared to expose your local port. Architecture and deployment details are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+The LINE webhook needs a publicly reachable HTTPS endpoint; use ngrok, cloudflared, or a similar tunnel for local testing.
 
-## Direction & roadmap
+CI also builds the production Docker image, starts the container, and validates `/health/live` plus the image healthcheck.
 
-This project keeps **OpenAI + LINE, self-hosting, and user-supplied API keys** while evolving in phases into a personal assistant. It will not be rewritten wholesale or switch its default provider. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phases, data models, API/model choices, reference architecture, and licensing boundaries.
+## Architecture at a glance
 
-### Done
+```text
+LINE
+  │ webhook
+  ▼
+api/index.js
+  │ preflight / durable enqueue / idempotency
+  ▼
+Supabase-backed jobs
+  │
+  ├── OpenAI ── chat / transcription / vision / image
+  ├── SerpAPI ── search
+  ├── Google ── Calendar / Tasks
+  └── Open-Meteo ── weather
+  │
+  ▼
+LINE delivery checkpoint
+```
 
-- **Security hardening**: webhook fails closed when `LINE_CHANNEL_SECRET` is missing, `.env.example` defaults `APP_DEBUG=false`, CodeQL scanning + Dependabot added, dependency vulnerabilities resolved.
-- **6 bug fixes**: group `forget` not clearing history, `search` crash on no results, `version` command taking down the batch, health route hanging, `stop` sequences never sent, audio temp-file leak.
-- **Durable source state**: user/group activation uses only deployment-scoped HMAC keys in Postgres with atomic limits; raw LINE IDs and names are not persisted.
-- **Default model upgrades**: chat `gpt-4o-mini`, image `gpt-image-2` (`low` quality), transcription `gpt-4o-mini-transcribe` (all env-overridable).
-- **Capability feature flags**: `ENABLE_IMAGE_GENERATION` / `ENABLE_TRANSCRIPTION` / `ENABLE_VISION` / `ENABLE_SEARCH` for cost control.
-- **Conversation TTL**: `APP_MAX_PROMPT_AGE` expires idle conversation context (disabled by default; set seconds to enable).
-- **CI + badges**: GitHub Actions runs eslint + jest on every push; README shows live CI / CodeQL status badges.
-- **Group reply policy**: `GROUP_REPLY_REQUIRES_MENTION` makes groups require a mention before replying, reducing noise (off by default).
-- **LINE delivery checkpoint**: failed replies resend only the saved result, never rerun paid AI work or silently fall back to quota-counted Push API calls.
-- **URL summary**: `ENABLE_URL_SUMMARY` (off by default) fetches a URL in the message via an SSRF-safe fetch and uses the page as summary context; residual risks in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
-- **GPT Image support**: `gpt-image-2` is the default; base64 images are uploaded to private Vercel Blob and shared with LINE through a temporary signed URL. The model and quality remain configurable. Setup in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
-- **Webhook deduplication**: LINE redeliveries and repeated `webhookEventId` values are processed only once, preventing duplicate paid API calls and replies.
-- **Durable foundation (Phase 0)**: Supabase Postgres, atomic webhook idempotency, lease-fenced jobs, encrypted payloads, and HMAC-derived user keys. Version 6.0 always queues durably; missing IDs, database failures, or stale migrations reject the ACK so LINE can redeliver.
-- **Events and reminders**: one sentence becomes a JSON-Schema-validated draft; explicit dates and local wall-clock times are resolved deterministically, while incomplete details continue through a durable structured clarification. Recurring phrases such as `Every day at 22:40 routine check` enter the schedule flow directly and show the recurrence rule before confirmation. Create and edit use token-bound confirmation, row locking, optimistic versions, and overlap warnings. `Connect Google Calendar` starts OAuth without invoking general chat; create and bot-originated updates sync through idempotent durable jobs, while list, complete, and delete call Google Calendar.
-- **Durable checkpoints**: "AI finished" and "LINE delivered" are separate checkpoints, giving at-most-once AI work with retryable delivery. Delivery retries do not rerun the paid AI phase or duplicate a successful LINE reply.
+Main code areas:
 
-### 6.x stable releases
+- `api/`: HTTP / serverless entry points
+- `app/`: LINE events, context, handlers, and commands
+- `services/`: AI, LINE, Google, queue, reminders, and integrations
+- `repositories/`: Supabase data access
+- `db/`: migrations and rollbacks
+- `config/index.js`: single environment-variable read point
+- `tests/`: Jest regression tests
 
-- **`6.1.0` (current)** changes the default lead reminder to **one day ahead** while keeping the at-start reminder; the Calendar inbound v3 baseline imports existing future, non-recurring, timed Google-origin events from the primary calendar (including ones the bot did not create), and later incremental creates/edits/deletes schedule, reschedule, or cancel LINE reminders. **Tasks with a due date** get the same lead and due reminders. It also adds the Dependabot classification, guarded merge, and monthly dependency-freshness maintenance loop.
-- **`6.0.1`** fixes event deletion removing only the `events` row without cancelling pending reminders; LINE and Google inbound deletions now share one atomic SQL statement.
-- **`6.0.0`** completes the durable-only runtime, Google Calendar/Tasks contract, reminders, recurrence, search, weather, and desktop audio path, with centralized LINE/Supabase/Google acceptance complete. Spoken Chinese schedule-prefix homophones are normalized while the raw transcript remains visible for confirmation.
-- **Google contract limits**: Calendar outbound CRUD, mapped timed non-recurring inbound, and importing future timed non-recurring Google-origin events from the primary calendar are supported. The first baseline imports existing supported events; later edits and deletions reschedule or cancel LINE reminders. Calendar all-day events, recurring series/exceptions, non-primary imports, and Tasks due-date inbound remain explicitly unsupported.
-- **Further model/API upgrades** — first pass done; new models must be re-verified against official documentation before use, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
-- **Adopt selected fermi architecture lessons** — rebuild reliability, persistence, observability in phases; do not merge fermi source code directly.
-- **A Claude-based assistant** — possible future version, TBD.
+## Documentation ownership
 
-### Excluded directions
+### User documentation
 
-- **OpenAI / ChatGPT subscription OAuth instead of API keys** — OpenAI currently bills and manages ChatGPT subscriptions separately from API usage; this repo should not be designed as a third-party LINE bot that consumes a user's ChatGPT subscription quota.
-- **CalDAV / Apple / ICS interop (former Phase 5B)** — Google Calendar bidirectional sync already covers the single-Google-account personal use case; cross-protocol interop costs outweigh the benefit.
-- **Event sharing and group collaboration (former Phase 8)** — stays a single-user personal assistant; no share links or group permission model.
-- **Multi-channel adapters (former Phase 9)** — LINE is the sole optimized channel.
-- **Search topic-tracking push and multi-source cross-referencing (former Phase 7 items)** — search stays user-initiated ask-and-answer with source links only.
-- **Image-to-event capture (former Phase 4 item)** — vision confidence/multi-event complexity is high; images stay for vision chat. (**Voice-created events are implemented.**)
-- **Batch creation of multiple events at once (former Phase 1 item)** — needs a multi-draft, per-item/all confirmation state machine; low value for single-user use, where one-by-one entry or recurring events already cover most needs.
+- [Documentation site](https://sanhsien.github.io/gpt-ai-assistant-docs/en/)
+- [Traditional Chinese docs](https://sanhsien.github.io/gpt-ai-assistant-docs/)
+- [`SanHsien/gpt-ai-assistant-docs`](https://github.com/SanHsien/gpt-ai-assistant-docs): source of truth for installation, deployment, configuration, usage, and troubleshooting
 
-The last six were decided on 2026-07-17; see [`docs/ROADMAP.md`](docs/ROADMAP.md).
+### Maintainer documentation in this repo
 
-See [`docs/DECISIONS.md`](docs/DECISIONS.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status.
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md): runtime architecture, development, deployment implementation, and validation
+- [`docs/ROADMAP.md`](docs/ROADMAP.md): product boundaries, data/Google contracts, and future direction
+- [`docs/DECISIONS.md`](docs/DECISIONS.md): technical and product decisions
+- [`REVIEW.md`](REVIEW.md): latest evidence-based project review and unverified items
+- [`CHANGELOG.md`](CHANGELOG.md): version history
+- [`NOTICE.md`](NOTICE.md): provenance, attribution, and third-party notices
 
-## Docs
+## Product direction
 
-- Docs site (Chinese): <https://sanhsien.github.io/gpt-ai-assistant-docs/>
-- Docs site (English): <https://sanhsien.github.io/gpt-ai-assistant-docs/en/>
-- Maintenance docs: [roadmap and technical evaluation](docs/ROADMAP.md), [development and deployment](docs/DEVELOPMENT.md), and [decision log](docs/DECISIONS.md)
+GPT AI Assistant keeps these core constraints:
 
-> The docs site originated from [`memochou1993/gpt-ai-assistant-docs`](https://github.com/memochou1993/gpt-ai-assistant-docs) (VuePress), is now independently maintained, and is published via GitHub Pages. Upstream original: <https://memochou1993.github.io/gpt-ai-assistant-docs/>.
+- **LINE remains the sole primary user interface** rather than becoming a multi-channel platform.
+- **OpenAI remains the default AI provider**, using user-supplied API keys.
+- **Self-hosting and a verifiable durable runtime** take priority over adding more chat gimmicks.
+- Google Calendar / Tasks remain personal-assistant integrations rather than expanding into multi-user collaboration or enterprise workflow software.
 
-## Other reference projects
+Completed work, excluded directions, and future planning live in [`docs/ROADMAP.md`](docs/ROADMAP.md); the README intentionally does not maintain a second parallel roadmap.
 
-This project references a few services and open-source projects for concepts, specs, or deployment flows only (official LINE/OpenAI docs, other Traditional-Chinese LINE bots, fermi, Toki, etc.) and includes **none of their source code**; GPL / FSL / unlicensed projects are not merged into this MIT repo. See the Credits table in [`NOTICE.md`](NOTICE.md) for the full list, licenses, and what each informed; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for the technical evaluation.
+## Origin and license
 
-## Project source & credits
+This project is derived from [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant), retains the original MIT license and attribution, and is now independently maintained by SanHsien. See [`NOTICE.md`](NOTICE.md) for detailed provenance and third-party notices.
 
-Upstream replaced its stale News section with a fermi successor pointer in [`d84c806`](https://github.com/memochou1993/gpt-ai-assistant/commit/d84c806b8368ded9d790067235827cdac32a23ab) on June 8, 2026. This project's source lineage includes that version, while its public Git history was reinitialized from the current independently maintained snapshot on July 18, 2026. No upstream contributions are currently planned; see the [roadmap](docs/ROADMAP.md#上游活躍度與回貢決策) for the activity assessment and decision.
-
-Originated from [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant) (by Memo Chou, MIT). Thanks to the original author and all [contributors](https://github.com/memochou1993/gpt-ai-assistant/graphs/contributors). Attribution and third-party notices are in [`NOTICE.md`](NOTICE.md).
-
-## License
-
-[MIT](LICENSE) — original MIT license and upstream attribution preserved. This repo is not switching to FSL-1.1-MIT for now; see [`docs/ROADMAP.md`](docs/ROADMAP.md) for the licensing strategy and future switch conditions.
+Source code is available under the [MIT License](LICENSE). This project is not officially endorsed by LINE, OpenAI, Google, Supabase, Vercel, or any other service provider.
