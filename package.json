@@ -1,7 +1,7 @@
 {
   "name": "gpt-ai-assistant",
   "version": "6.1.0",
-  "description": "Self-hosted LINE assistant powered by OpenAI, Supabase, and Google Calendar/Tasks",
+  "description": "Self-hosted LINE personal assistant with OpenAI, durable Supabase state, Google Calendar/Tasks, reminders, search, weather, voice, and vision",
   "type": "module",
   "engines": {
     "node": ">=24.0.0"

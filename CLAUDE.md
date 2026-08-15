@@ -1,13 +1,9 @@
 # CLAUDE.md
 
-Claude Code 在本專案工作時的指引。**專案定位、維護方向、硬性邊界、架構速覽、常用位置與驗證方向的唯一真相源是 [`AGENTS.md`](AGENTS.md)**——先讀它，本檔只補 Claude 專屬要點，不重複規則。
+Claude Code 在本專案工作時，先讀 [`AGENTS.md`](AGENTS.md)。**產品邊界、架構、文件分工與驗證規則都以 `AGENTS.md` 為準**；本檔只補 Claude 專屬工作方式，不複製專案規則。
 
-## 回覆要求
-
-- 使用繁體中文，先講修改、驗證、剩餘事項。
-- 不要把簡單任務寫成冗長架構分析。
-- 動到金鑰／webhook／部署流程時，同步更新 `.env.example` 與 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。
-
-## 文件同步
-
-新增／改動功能後，同步對應文件（各主題單一真相源）：使用者說明 [`README.md`](README.md)／[`README.en.md`](README.en.md)、最新覆核與未驗證項 [`REVIEW.md`](REVIEW.md)、變更 [`CHANGELOG.md`](CHANGELOG.md)、Phase 狀態與範疇 [`docs/ROADMAP.md`](docs/ROADMAP.md)、決策理由 [`docs/DECISIONS.md`](docs/DECISIONS.md)、授權與參考專案 [`NOTICE.md`](NOTICE.md)。文件站（另一 repo `gpt-ai-assistant-docs`，中英）在版本／功能敘述變動時一併更新。
+- 以繁體中文回報修改、驗證與剩餘風險。
+- 不把簡單任務擴寫成大型重構或文件工程。
+- 涉及金鑰、webhook、durable queue、migration、Google sync 或 Production smoke 時，先讀相關實作與 `docs/DEVELOPMENT.md`，不要從 README 推測完整操作。
+- 使用者部署／設定／操作／疑難排解的權威文件在 `SanHsien/gpt-ai-assistant-docs`；app repo 只更新真正受影響的 runtime／架構／決策文件。
+- 未完成的 LINE／Google／Supabase／Vercel 實機驗證要明確標示，不能以工具限制或「應該可用」代替產品證據。
