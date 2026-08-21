@@ -18,6 +18,7 @@ npm-debug.log*
 # Test / coverage
 coverage
 dependency-freshness-report.md
+upstream-review-report.md
 
 # OS junk
 .DS_Store

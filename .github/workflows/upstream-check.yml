@@ -1,0 +1,87 @@
+name: 上游更新檢查
+
+# 上游 memochou1993/gpt-ai-assistant 目前近乎停更（最後一次 merged PR 是 2024-07-09），
+# 正因如此才需要排程：偶爾動一次的上游，最容易在「等有空再看」裡被漏掉。
+# 本 repo 的公開歷史於 2026-07-18 以快照重新初始化，與上游沒有共同祖先，
+# 因此由檢查器自行 fetch 上游分支，再從 baseline 的 reviewedThrough 往後列。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/check-upstream-updates.js
+      - tools/upstream-baseline.json
+      - .github/workflows/upstream-check.yml
+  schedule:
+    # 每週一 10:23（Asia/Taipei）。
+    - cron: "23 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 檢出程式碼
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          # 上游與本 repo 沒有共同祖先；完整歷史才能讓 `git log reviewed..upstream` 成立。
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: 檢查上游更新
+        id: upstream
+        run: |
+          node tools/check-upstream-updates.js \
+            --github-output \
+            --output upstream-review-report.md
+          cat upstream-review-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 建立或更新提醒 issue
+        if: steps.upstream.outputs.needs_attention == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 沿用同一個 issue，避免每週開一張新的把列表淹掉。
+          issue_json="$(gh issue list \
+            --state all \
+            --search '上游更新檢查 in:title' \
+            --json number,state \
+            --jq '.[0] // {}')"
+          issue="$(jq -r '.number // empty' <<< "$issue_json")"
+          if [ -n "$issue" ]; then
+            if [ "$(jq -r '.state' <<< "$issue_json")" = "CLOSED" ]; then
+              gh issue reopen "$issue"
+            fi
+            gh issue edit "$issue" --body-file upstream-review-report.md
+          else
+            gh issue create \
+              --title "上游更新檢查：有新 commit 待審視" \
+              --body-file upstream-review-report.md \
+              --assignee "$GITHUB_REPOSITORY_OWNER"
+          fi
+
+      - name: 關閉已解決的提醒 issue
+        if: steps.upstream.outputs.needs_attention == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          issue="$(gh issue list --state open --search '上游更新檢查 in:title' --json number --jq '.[0].number // empty')"
+          if [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "本次排程檢查確認上游沒有超過 baseline 的新 commit，關閉提醒。"
+          fi

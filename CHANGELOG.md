@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- 新增上游更新排程檢查：`tools/check-upstream-updates.js` 與 `.github/workflows/upstream-check.yml` 每週一比對上游 `memochou1993/gpt-ai-assistant` 的 `main` 與 `tools/upstream-baseline.json` 的 `reviewedThrough`（`d84c806`），有未審 commit 就建立／reopen 固定提醒 issue，沒有就自動關閉。本 repo 的公開歷史已與上游斷開共同祖先，檢查器因此自行 fetch 上游分支再列 commit。本機可用 `npm run check:upstream`；離線契約測試見 `tests/check-upstream-updates.test.js`。上游近乎停更正是需要排程的理由——偶爾動一次的上游最容易在「等有空再看」裡被漏掉。
 - 補強 Production LINE／Google／Supabase 驗收 runbook：AI 必須先讀既有流程、使用 LINE Windows app 與已登入 Chrome；Google OAuth 只交接必要登入步驟，完成後自動續測。新增控制狀態失效、Chrome 擴充功能 UI 阻擋、Vercel Sensitive env 遮罩、Supabase SQL Editor 精準查核、單次刪除確認、CTE 清理與全欄位歸零複核的詳細恢復步驟。
 - 2026-08-08 以 Production LINE 重驗 Google OAuth 與行程同步：唯一測試行程在 LINE 確認後只建立一筆 Google Calendar event，sync／status jobs 各執行一次成功，reminder job 成功排入後隨行程刪除取消，相關 dead job 為 0；Calendar、Supabase event／confirmation／jobs、pending 孤兒提醒與本機暫存檔均已精準清為 0。
 - 升級執行期依賴 `google-auth-library` `^10` → `^11` 與 `axios` `^1.2.1` → `^1.19.0`（Dependabot PR #10，依政策經人工審查）。由於測試以 mock 取代 `google-auth-library`，另以原生 Node ESM 載入 `services/google-calendar.js`／`google-tasks.js` 驗證 named export 與使用中的 7 個 `OAuth2Client` API，並在 Production 以真實 LINE Google OAuth 授權完成閉環實測。

@@ -18,6 +18,7 @@
   "scripts": {
     "check:dependencies": "node tools/check-dependency-freshness.js",
     "check:dependabot-policy": "node tools/classify-dependabot-update.js",
+    "check:upstream": "node tools/check-upstream-updates.js",
     "db:migrate": "node scripts/migrate-database.js",
     "db:preflight": "node scripts/check-runtime.js",
     "db:configure-reminders": "node scripts/configure-reminder-cron.js",
