@@ -29,18 +29,18 @@
     "test:module-load": "node --input-type=module -e \"await Promise.all([import('./services/reminders.js'), import('./services/runtime-preflight.js'), import('./contracts/google-provider.js')])\""
   },
   "dependencies": {
-    "@vercel/blob": "^2.6.1",
-    "@vercel/functions": "^3.7.6",
+    "@vercel/blob": "^2.8.0",
+    "@vercel/functions": "^3.9.3",
     "axios": "^1.19.0",
     "dotenv": "^17.4.2",
     "express": "5.2.1",
     "express-rate-limit": "^8.6.1",
     "form-data": "^4.0.0",
-    "google-auth-library": "^11.0.0",
+    "google-auth-library": "^11.0.2",
     "gpt-3-encoder": "^1.1.4",
     "html-to-text": "^10.0.1",
     "opencc-js": "^1.4.1",
-    "pg": "^8.22.0",
+    "pg": "^8.23.0",
     "rrule": "2.8.1"
   },
   "devDependencies": {
