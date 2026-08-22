@@ -2,6 +2,50 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-08-23 — 上游重評：讀 diff 與程式碼後，再引用兩筆
+
+**背景**：前一輪把 PR #368、issue #375／#356 以「產品方向」「本 fork 已處理」打發。這輪逐筆讀
+上游 diff、並實際到本 fork 程式碼裡驗證，結論有兩處要翻案。
+
+### 引用：issue #375（LINE 回覆字數上限）
+
+**上游現象**：長回覆送不出去。**本 fork 實測**：`grep` 全樹沒有任何 5000 字元的處理——
+`services/line.js` 的 `reply`／`push` 直接把 messages 丟給 LINE。LINE 對 >5000 字元的文字訊息
+回 400，**整則拒收**，使用者看到的是「機器人沒回應」，不是「回覆被截斷」。前一輪寫「本 fork 已
+自行處理分段輸出」是錯的。
+
+**做法**：新增 `utils/split-line-text.js`，在 `services/line.js` 這一層切分：切點優先段落 →
+換行 → 句號，最後才硬切；超過 LINE 每次 5 則的上限時，最後一則補「（訊息過長，已截斷）」，
+讓截斷是看得見的。7 個測試涵蓋短訊息、剛好超過、段落切點、超過五則、非文字訊息、
+其他欄位保留與每次上限。
+
+### 引用：issue #356（`SERPAPI_LOCATION` 填國名 → 400）
+
+**本 fork 實測**：預設值 `'tw'` 是對的，但**沒有任何驗證**，`.env.example` 也沒寫格式。使用者照
+issue 那樣填 `Taiwan` 就會拿到 SerpAPI 的原始 400（`Unsupported \`Taiwan\` country - gl parameter`），
+而那個訊息不會告訴他該填什麼。
+
+**做法**：`services/serpapi.js` 送出前用 `normalizeCountryCode()` 檢查 ISO 3166-1 alpha-2，
+不合格就丟出說明該填什麼的錯誤；`.env.example` 補上格式註解。3 個測試。
+
+### 維持不引用（這次是讀完 diff 的理由，不是「產品方向」）
+
+| 項目 | 硬理由 |
+| --- | --- |
+| PR #368 FAQ／policy | diff 裡 `isMediaGenerationRequest` 會**一律拒絕媒體生成請求**回「暫不提供」，而本 fork 有可用的圖片生成（`OPENAI_IMAGE_GENERATION_MODEL` 預設 `gpt-image-2`）——引用等於砍掉現有功能。另含 `/_diag` 除錯路由（PR 自己註明「完成調試後可移除」）與 `console.log('[WH EVENT]', { text: userText })` 把使用者訊息內容寫進 log，屬隱私回退。 |
+| PR #357 預設模型改 GPT-4.1-mini | diff 只改 `config/index.js` 的預設值並刪掉 `MODEL_GPT_3_5_TURBO`／`MODEL_GPT_4_OMNI` 常數。本 fork 的預設已是 `gpt-4o-mini`／`gpt-4o`，比 PR 的起點新；預設模型屬部署選擇，由 `OPENAI_COMPLETION_MODEL` 決定。 |
+| PR #371 | 內容是把 `.claude/skills/` 一整包（algorithmic-art、agent-lifecycle-management 等）倒進 repo，與 LINE 助理產品無關。 |
+| PR #355、#362 | 分別是空白的 "Attempt 1" 分支與 README 單行修改。 |
+| issue #299 圖片輸入／DALL·E 3 | 本 fork 已有 vision（`OPENAI_VISION_MODEL`）與圖片生成（`gpt-image-2`），需求已被涵蓋。 |
+| issue #193／#279／#343／#347／#367 | 語音輸出、主動發訊息、向量資料庫、多語文件——都是上游的產品路線討論，沒有可套用的 patch。 |
+
+### 水位
+
+PR 已看到 **#371**、issue 已看到 **#375**（`reviewedPrThrough` / `reviewedIssueThrough`）。
+上游 2026-06-08 起停更，所以引用方式是「從 open PR 與 issue 撿本 fork 會壞的東西」，
+不是等它合併。
+
+
 ## 2026-08-22 — 上游 PR／issue 盤點：引用 GPT-5 參數分流，其餘不引用
 
 **決定**：盤點上游當時的 **6 個 open PR、8 個 open issue、3 個分支**。引用 PR

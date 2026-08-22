@@ -1,5 +1,6 @@
 import axios from 'axios';
 import config from '../config/index.js';
+import { expandTextMessages } from '../utils/split-line-text.js';
 import { handleFulfilled, handleRejected, handleRequest } from './utils/index.js';
 
 export const EVENT_TYPE_MESSAGE = 'message';
@@ -43,12 +44,14 @@ client.interceptors.response.use(handleFulfilled, (err) => {
   return handleRejected(err);
 });
 
+// 超過 5000 字元的文字訊息會被 LINE 以 400 整則拒收，使用者看到的是「沒回應」
+// 而不是「被截斷」。切分放在這一層，所有呼叫端就不必各自記得這個上限。
 const reply = ({
   replyToken,
   messages,
 }) => client.post('/v2/bot/message/reply', {
   replyToken,
-  messages,
+  messages: expandTextMessages(messages),
 });
 
 const push = ({
@@ -57,7 +60,7 @@ const push = ({
   retryKey = null,
 }) => client.post('/v2/bot/message/push', {
   to,
-  messages,
+  messages: expandTextMessages(messages),
 }, retryKey ? { headers: { 'X-Line-Retry-Key': retryKey } } : undefined);
 
 const fetchGroupSummary = ({
