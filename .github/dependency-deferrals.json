@@ -1,10 +1,10 @@
 {
   "@babel/core": {
     "latestMajor": 8,
-    "reason": "Jest 30 的 Babel transform 鏈仍要求 Babel 7"
+    "reason": "Jest 30 的 Babel transform 鏈仍要求 Babel 7：@jest/transform@30.4.1 直接依賴 @babel/core ^7.27.4（babel-jest 的 peer 已放行 ^8.0.0-0，卡住的是 transform 本身）。2026-08-22 複驗仍成立。"
   },
   "@babel/preset-env": {
     "latestMajor": 8,
-    "reason": "Jest 30 的 Babel transform 鏈仍要求 Babel 7"
+    "reason": "Jest 30 的 Babel transform 鏈仍要求 Babel 7：@jest/transform@30.4.1 直接依賴 @babel/core ^7.27.4（babel-jest 的 peer 已放行 ^8.0.0-0，卡住的是 transform 本身）。2026-08-22 複驗仍成立。"
   }
 }
