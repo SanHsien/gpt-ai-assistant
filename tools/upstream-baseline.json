@@ -3,5 +3,7 @@
   "branch": "main",
   "reviewedThrough": "d84c806b8368ded9d790067235827cdac32a23ab",
   "reviewedDate": "2026-07-17",
-  "notes": "上游最後一次 merged PR 是 2024-07-09 的 #333；2026-06-08 的 d84c806 只把過時 News 改成 fermi 接班指引，已納入本專案來源脈絡。活躍度與回貢評估見 docs/ROADMAP.md，逐筆決策寫 docs/DECISIONS.md。"
+  "notes": "上游最後一次 merged PR 是 2024-07-09 的 #333；2026-06-08 的 d84c806 只把過時 News 改成 fermi 接班指引，已納入本專案來源脈絡。活躍度與回貢評估見 docs/ROADMAP.md，逐筆決策寫 docs/DECISIONS.md。 2026-08-22 盤點 open PR／issue：引用 #365（GPT-5 參數分流），其餘不引用，理由記在 docs/DECISIONS.md。",
+  "reviewedPrThrough": 371,
+  "reviewedIssueThrough": 375
 }

@@ -56,13 +56,24 @@ const createChatCompletion = ({
   stop = config.OPENAI_COMPLETION_STOP_SEQUENCES,
   responseFormat = null,
 }) => {
+  const resolvedModel = hasImage({ messages }) ? config.OPENAI_VISION_MODEL : model;
+  // GPT-5 是 reasoning 模型，Chat Completions 對它換了一組參數：token 上限叫
+  // `max_completion_tokens`（送 `max_tokens` 會被拒），而 frequency/presence
+  // penalty 不再接受。送舊參數不是「被忽略」而是整個請求 400，所以要分流。
+  // 取自上游 PR #365（memochou1993/gpt-ai-assistant），依本 fork 多出的 stop /
+  // response_format 欄位改寫。
+  const isReasoningModel = /^gpt-5/.test(resolvedModel);
   const body = {
-    model: hasImage({ messages }) ? config.OPENAI_VISION_MODEL : model,
+    model: resolvedModel,
     messages,
     temperature,
-    max_tokens: maxTokens,
-    frequency_penalty: frequencyPenalty,
-    presence_penalty: presencePenalty,
+    ...(isReasoningModel
+      ? { max_completion_tokens: maxTokens }
+      : {
+        max_tokens: maxTokens,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
+      }),
     stop,
     ...(responseFormat ? { response_format: responseFormat } : {}),
   };

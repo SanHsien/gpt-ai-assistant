@@ -2,6 +2,33 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-08-22 — 上游 PR／issue 盤點：引用 GPT-5 參數分流，其餘不引用
+
+**決定**：盤點上游當時的 **6 個 open PR、8 個 open issue、3 個分支**。引用 PR
+[#365](https://github.com/memochou1993/gpt-ai-assistant/pull/365)（GPT-5 參數分流），其餘不引用。
+水位記進 `tools/upstream-baseline.json`（`reviewedPrThrough: 371`、`reviewedIssueThrough: 375`），
+之後只看更大的編號。
+
+**引用 #365 的理由（本 fork 真的會壞）**：Chat Completions 對 `gpt-5*` 換了一組參數——token
+上限改叫 `max_completion_tokens`，且不再接受 `frequency_penalty` / `presence_penalty`。送舊參數
+不是被忽略，是整個請求 400。本 fork 原本無條件送 `max_tokens` 與兩個 penalty，因此只要把
+`OPENAI_COMPLETION_MODEL` 設成 gpt-5 系列就會全面失敗。依本 fork 多出的 `stop` /
+`response_format` 欄位改寫後採用，並補兩個測試（gpt-5 走新參數、其餘走舊參數）。
+
+**其餘的判斷**：
+
+- PR #357（預設改 GPT-4.1-mini）：本 fork 的預設模型由 `OPENAI_COMPLETION_MODEL` 環境變數決定，
+  預設值屬部署選擇，不跟上游的預設走。
+- PR #355（Attempt 1 AI assistant）、#362（改 README）、#371（下載 skill 套件）：與本 fork 無關。
+- PR #368（FAQ / policy 模組）：新增 `utils/faq.js`、`utils/policy.js` 與一支新依賴，屬產品方向；
+  本 fork 已有自己的排程、提醒與 Google 整合線，不引入平行的 FAQ 子系統。
+- 8 個 open issue 多為 2023–2025 年的功能請求（語音輸出、主動發訊息、向量資料庫、多語文件）。
+  其中 #375（LINE 回覆字數上限）與本 fork 有關，但本 fork 已自行處理分段輸出；其餘不追。
+
+**上游活躍度**：最後一次 push 是 2026-06-08，PR 從 2025 年就積著沒有合併。本 fork 的
+`reviewedThrough` 已在上游 tip，實際上是「上游停更、本 fork 自行前進」的狀態——所以引用要看的是
+**open PR 裡有沒有本 fork 需要的修正**，而不是等它合併。#365 就是這樣被撿回來的。
+
 ## 2026-08-08 — 執行期 major 依賴的審查證據標準
 
 - **決定**：當測試以 mock 取代某個執行期依賴時，CI 綠燈**不算**該依賴 major 升級的驗證證據；合併前必須另外提供三項：實際安裝目標版後列舉程式使用中的 API 是否齊備、以**原生 Node ESM** 直接 `import` 相關模組確認 export 可解析、以及 `engines` 與本專案 Node 基線相容。`google-auth-library` `^10`→`^11`（PR #10）即依此標準審查後合併，並於 Production 以真實 LINE Google OAuth 授權閉環完成最終驗證。
