@@ -295,7 +295,7 @@ PR 已看到 **#371**、issue 已看到 **#375**（`reviewedPrThrough` / `review
 ## 2026-07-14 — Phase 0 起手：資料庫基礎（inert，不改線上 bot）
 
 - **決定**：依 [`ROADMAP.md`](ROADMAP.md) Phase 0 建立資料庫基礎的第一片：`services/database.js`（`pg` 直連、`DATABASE_URL` 驅動、fail closed）、`db/migrations/0001_init.sql`（`users`/`processed_events`/`jobs`/`runs`）、`repositories/processed-events.js`（`INSERT ... ON CONFLICT` 原子冪等）＋ mock 測試。新增相依 `pg`。
-- **刻意 inert**：這批**尚未接入 webhook / handler**，未設 `DATABASE_URL` 時完全不使用——主人剛把 bot 接通，不能因為引入 DB 依賴而弄壞正在運作的部署。接線（webhook 冪等改走 DB、durable queue worker）留待 Supabase 上線後的下一片。
+- **刻意 inert**：這批**尚未接入 webhook / handler**，未設 `DATABASE_URL` 時完全不使用——維護者剛把 bot 接通，不能因為引入 DB 依賴而弄壞正在運作的部署。接線（webhook 冪等改走 DB、durable queue worker）留待 Supabase 上線後的下一片。
 - **技術選擇對齊 ROADMAP**：用 `pg` 直連（非 `@supabase/supabase-js`），因為 Phase 0 需要交易、列鎖與 `FOR UPDATE SKIP LOCKED` 佇列；`jobs` 表即「等價 durable queue」，不強制依賴 pgmq 擴充。照 ROADMAP 明列的預計檔案結構實作，避免與 Codex 的架構分歧。
 - **Supabase 後續**：專案、Vercel env 與 migration 已於同日完成；後續工作是 webhook / worker / schedule handler 接線。
 - **驗證**：`npx eslint .` 0 errors、`npm test` 53/53（24 suites）。此為 inert 基礎，未改運行時行為，記入 CHANGELOG `Unreleased`，不單獨切版。
@@ -339,11 +339,11 @@ PR 已看到 **#371**、issue 已看到 **#375**（`reviewedPrThrough` / `review
 
 > 歷史紀錄：本節的 `dall-e-3` 預設與 public Blob 作法已分別由 v4.12.2 的 `gpt-image-2`、後續 private Blob signed URL 修正取代；目前設定請以 [`DEVELOPMENT.md`](DEVELOPMENT.md) 為準。
 
-- **決定**：以 **Vercel Blob** 作為生圖的圖片儲存後端（主人有 Vercel 免費帳號），解鎖 GPT Image（`gpt-image-1`，回傳 base64）。新增相依 `@vercel/blob@^2.6.1`（`npm audit` 0）。
+- **決定**：以 **Vercel Blob** 作為生圖的圖片儲存後端（維護者有 Vercel 免費帳號），解鎖 GPT Image（`gpt-image-1`，回傳 base64）。新增相依 `@vercel/blob@^2.6.1`（`npm audit` 0）。
 - **實作**：`utils/upload-image.js`（base64 → Vercel Blob → 公開 URL，需 `BLOB_READ_WRITE_TOKEN`）；`utils/generate-image.js` 改為：回應有 `url`（DALL·E）直接用、有 `b64_json`（GPT Image）上傳 Blob 取 URL。**預設 `dall-e-3`（URL）維持不變、不需 Blob**——自動向下相容，無需 flag。
 - **測試**：`tests/generate-image.test.js`（url 分支不上傳 / b64 分支上傳）、`tests/upload-image.test.js`（mock @vercel/blob，含缺 token 丟錯）。皆 mock，不需真實 Blob/OpenAI。
 - **限制（DEVELOPMENT.md 記錄）**：Blob 圖片不會自動清除、會累積受免費額度限制；URL 公開可讀。
-- **驗證分工**：我建置 + mock 測邏輯；端到端需主人：Vercel 建 Blob store（自動注入 token）、設 `OPENAI_IMAGE_GENERATION_MODEL=gpt-image-1`、確認 OpenAI GPT Image 權限、部署。
+- **驗證分工**：我建置 + mock 測邏輯；端到端需維護者：Vercel 建 Blob store（自動注入 token）、設 `OPENAI_IMAGE_GENERATION_MODEL=gpt-image-1`、確認 OpenAI GPT Image 權限、部署。
 - **版本**：`4.11.0` → `4.12.0`（語意化中版號，向下相容）。tag `v4.12.0` + Release。`npx eslint .` 0、`npm test` 39/39（19 suites）。
 
 ## 2026-07-12 — 發布 v4.11.0（網址摘要，SSRF-safe，預設關）

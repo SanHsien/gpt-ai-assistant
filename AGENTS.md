@@ -34,7 +34,7 @@
 
 ## 開發原則
 
-- 一般變更直接推 `origin/main`，不開功能分支、不開維護 PR（主人 2026-08-22 指示）。只有在需要他人審查、或改動風險高到值得先讓 CI 在 PR 上跑一輪時，才退回 **branch → PR → CI → merge**。
+- 一般變更直接推 `origin/main`，不開功能分支、不開維護 PR（2026-08-22 起）。只有在需要他人審查、或改動風險高到值得先讓 CI 在 PR 上跑一輪時，才退回 **branch → PR → CI → merge**。
 - 改行為前先讀 `config/index.js` 與相關 service / repository / contract，確認 feature flag、預設值與 durable 路徑。
 - 新增 LINE 指令時沿用既有 `handlers/` + `commands/` 模式；不要另建平行 command framework。
 - 會造成付費 API 呼叫的流程要維持「運算完成」與「LINE 送達」分離，重試不得無意重跑付費工作。
@@ -127,7 +127,7 @@ CI 另外會：
 ## 對外邊界：PR 只打本 fork
 
 - **PR、push、release 一律指向 `SanHsien/gpt-ai-assistant`。** 對上游 `memochou1993/gpt-ai-assistant` 開 PR、push 或發 release
-  需要主人在當次對話明確同意回貢；「fork 一份」「建開發環境」「比照其他 repo」都不是同意。
+  需要維護者在當次對話明確同意回貢；「fork 一份」「建開發環境」「比照其他 repo」都不是同意。
 - 根因是機制不是粗心：`gh` 在 fork clone 的**預設 repo 就是上游**（`gh repo set-default --view` 會回
   `memochou1993/gpt-ai-assistant`），裸跑 `gh pr create` 必然打上去。每個 clone 先跑一次
   `gh repo set-default SanHsien/gpt-ai-assistant`。
