@@ -2,8 +2,8 @@
   "repo": "https://github.com/memochou1993/gpt-ai-assistant.git",
   "branch": "main",
   "reviewedThrough": "d84c806b8368ded9d790067235827cdac32a23ab",
-  "reviewedDate": "2026-07-17",
-  "notes": "上游最後一次 merged PR 是 2024-07-09 的 #333；2026-06-08 的 d84c806 只把過時 News 改成 fermi 接班指引，已納入本專案來源脈絡。活躍度與回貢評估見 docs/ROADMAP.md，逐筆決策寫 docs/DECISIONS.md。 2026-08-22 盤點 open PR／issue：引用 #365（GPT-5 參數分流），其餘不引用，理由記在 docs/DECISIONS.md。 2026-08-23 重評（讀 diff + 對照本 fork 程式碼）：翻案兩筆——issue #375 的 LINE 5000 字上限本 fork 真的沒處理（已補 utils/split-line-text.js），issue #356 的 SERPAPI_LOCATION 沒有格式驗證（已補 normalizeCountryCode）。理由逐項記在 docs/DECISIONS.md。",
-  "reviewedPrThrough": 371,
+  "reviewedDate": "2026-08-23",
+  "notes": "上游最後一次 merged PR 是 2024-07-09 的 #333；2026-06-08 的 d84c806 只把過時 News 改成 fermi 接班指引，已納入本專案來源脈絡。活躍度與回貢評估見 docs/ROADMAP.md，逐筆決策寫 docs/DECISIONS.md。 2026-08-22 盤點 open PR／issue：引用 #365（GPT-5 參數分流），其餘不引用，理由記在 docs/DECISIONS.md。 2026-08-23 重評（讀 diff + 對照本 fork 程式碼）：翻案兩筆——issue #375 的 LINE 5000 字上限本 fork 真的沒處理（已補 utils/split-line-text.js），issue #356 的 SERPAPI_LOCATION 沒有格式驗證（已補 normalizeCountryCode）。理由逐項記在 docs/DECISIONS.md。 2026-08-23（補）：先前查 PR/issue 用 --state open；改用 --state all 後看到 #372/#373/#374 三筆已關閉的 PR，逐筆確認都是第三方把無關專案（航班搜尋、英語口說 App）整棵樹推上來的投稿，不是上游變更，不引用。upstream/staging 與 upstream/main 同步、revert-327 分支 ahead 0，分支面向無可引用項。水位 PR 371 → 374。",
+  "reviewedPrThrough": 374,
   "reviewedIssueThrough": 375
 }

@@ -2,6 +2,21 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-08-23（補）：PR/issue 改用 `--state all` 查
+
+**決定**：`reviewedPrThrough` 由 371 推進到 374；查法一律改用 `--state all`。
+
+**理由**：先前用 `--state open` 查。那看不到已關閉的項目，而未合併就關閉的 PR 永遠不會經由
+commit 路徑抵達——那正是「上游拒收、但可能對本 fork 有價值」的一類。實際重查後多出三筆
+（#372、#373、#374），逐筆看過都是第三方把**無關的整棵專案**（航班搜尋系統、英語口說 App）
+推上來的投稿，動的檔案涵蓋整個 repo，不是上游的變更，也沒有可引用的內容。
+
+**分支**：`upstream/staging` 與 `upstream/main` 完全同步（ahead 0 / behind 0），
+`upstream/revert-327-feature/add-other-ai-provider` ahead 0、behind 21（2024 年的殘留線）。
+分支這個面向沒有可引用的東西。
+
+**commit**：`d84c806..upstream/main` 為 0，上游自 2026-06-08 起沒有新提交。
+
 ## 2026-08-23 — 上游重評：讀 diff 與程式碼後，再引用兩筆
 
 **背景**：前一輪把 PR #368、issue #375／#356 以「產品方向」「本 fork 已處理」打發。這輪逐筆讀
