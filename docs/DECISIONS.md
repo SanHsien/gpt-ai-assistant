@@ -2,6 +2,43 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-08-23 — Agentic Vision：採用設計線索，暫不導入文章實作
+
+**來源**：[Evan Lin 的 LINE Bot Agentic Vision 實作紀錄](https://www.evanlin.com/agentic-vision/)、
+[Google 官方 Agentic Vision 說明](https://blog.google/innovation-and-ai/technology/developers-tools/agentic-vision-gemini-3-flash/)
+與 [Gemini code execution 文件](https://ai.google.dev/gemini-api/docs/code-execution)。
+
+**結論**：文章對本 repo **有產品與架構參考價值，但沒有可直接搬用的實作**。保留以下三個線索：
+
+1. 一般看圖維持一鍵完成；只有標註、局部放大、計數或視覺計算等明確目標，才進較昂貴的進階路徑。
+2. 圖片本身與後續文字指令是兩個 LINE event，若日後做兩步互動，必須把 pending intent、owner、TTL
+   與圖片 reference 綁在一起，不能依賴同一 process 記憶體。
+3. 產出的標註圖片需用 HTTPS URL 交付 LINE；本 repo 已有 private Vercel Blob + 限時 signed GET URL，
+   應沿用這條路徑，不另開公開的臨時圖片 endpoint。
+
+**不直接採用的理由**：
+
+- 文章是 Python／Gemini／Cloud Run 實作；本 repo 是 Node.js／OpenAI-default／Vercel。加入 Gemini SDK
+  會突破既定 provider 邊界，也會形成第二套 vision stack。
+- 文章用 `user_id -> bytes` 與 pending flag 的 in-memory dictionary。這在多 instance、cold start、重送與
+  worker crash 下會遺失或對錯請求，且直接以 LINE user id 綁原始圖片，不符合本 repo 的 durable、最小個資
+  與 fail-closed 邊界。
+- 讓模型執行程式碼會增加成本、延遲、檔案生命週期與輸出驗證面；不能只多開一個 tool flag。付費運算完成
+  與 LINE 送達仍須分成 durable checkpoint，重試不得再次執行昂貴的 vision/code 工作。
+- 文章的 `gemini-3-flash-preview` 與 SDK 片段是 2026-01-27 的時間點快照；2026-08-23 的 Google 文件範例
+  已改用 Interactions API 與 `gemini-3.7-flash`，因此型別、模型名與 response parts 都不可照抄。
+
+**OpenAI 路徑**：官方目前的 [Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create)
+可接 image input 與 Code Interpreter output，而 [`gpt-image-2`](https://developers.openai.com/api/docs/models/gpt-image-2)
+可做 image edit。若日後需要相同能力，先以 OpenAI API 做獨立、付費有界的 prototype，不改 provider 預設；
+也不能把目前 Chat Completions 看圖流程誤當成已具備 agentic loop。
+
+**重評條件**：只有在實際個人使用反覆出現「小字看不清、要在原圖標註、可靠計數／視覺計算」需求，且
+OpenAI prototype 對代表性繁中 LINE 圖片的品質提升能覆蓋成本與延遲時才立案。立案前須先設計：feature flag、
+輸入大小／MIME 限制、owner-scoped encrypted durable state、短 TTL 與清理、模型／token／tool cost trace、
+AI-result checkpoint、LINE delivery checkpoint，以及文字與輸出圖片的回歸測試。此評估不重開已排除的
+「圖片建立行程」，也不改 `docs/ROADMAP.md`。
+
 ## 2026-08-23（補）：PR/issue 改用 `--state all` 查
 
 **決定**：`reviewedPrThrough` 由 371 推進到 374；查法一律改用 `--state all`。
