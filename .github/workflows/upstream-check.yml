@@ -46,6 +46,11 @@ jobs:
 
       - name: 檢查上游更新
         id: upstream
+        env:
+          # 檢查器會用 `gh` 列上游的 PR 與 issue，而 `gh` 在 Actions 裡沒有憑證
+          # 就列不到。少了這個 token 它會 fail closed，紅燈的意思就變成
+          # 「檢查器壞了」而不是「上游有東西」。
+          GH_TOKEN: ${{ github.token }}
         run: |
           node tools/check-upstream-updates.js \
             --github-output \

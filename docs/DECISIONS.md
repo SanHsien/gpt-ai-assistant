@@ -470,3 +470,31 @@ fresh-context code review 後逐項驗證，修掉 6 個真正的 bug（非風�
 
 - **決定**：部署平台不寫死，但文件與預設以 Vercel serverless 為主；同時保留本機 node 與 Docker 兩種跑法作為選項。
 - **理由**：原架構（`vercel.json`、`VERCEL_*` 環境變數、`deploy` 自我重新部署指令）本就為 Vercel 設計；但不封死其他自架方式。
+
+
+## 2026-08-29：上游檢查真的看 PR 與 issue 兩個面向
+
+**決定**：`tools/check-upstream-updates.js` 補上以 `gh <pr|issue> list --state all` 收集上游
+PR 與 issue，結果併進報告、`needs_attention` 與 exit code；新增
+`tests/check-upstream-tickets.test.js`；workflow 的檢查步驟補 `GH_TOKEN`。baseline 既有的
+`reviewedPrThrough` / `reviewedIssueThrough` 不動。
+
+**理由**：那兩個欄位早就寫在 `tools/upstream-baseline.json` 裡，但**沒有任何程式讀它們**——
+檢查器只比對 `reviewedThrough`。PR 與 issue 不是「查過沒發現」，是根本沒查，而每週的排程報告
+長得跟查過一樣綠。艦隊層級問題，見 `SanHsien/repo-fleet-ops` 的 `docs/INCIDENTS.md` 第十條
+（24 個 fork 裡 21 個都這樣）。
+
+本檔 2026-08-23 的條目寫過「改用 `--state all` 後看到 #372/#373/#374 三筆已關閉的 PR」——那是
+**人工**跑一次的結果，排程從來沒有跑過那件事。這次補的是排程。
+
+三個性質，缺一不可：
+
+- **`--state all`**：只查 open 看不到「開了又關、沒有合併」的項目。已合併的遲早會經由 commit
+  抵達，被關掉的永遠不會。
+- **`gh` 失敗時回 `null` 不回 `[]`**，報告寫「未檢查」，並讓 `needs_attention` 與 exit 2
+  **fail closed**。
+- **`GH_TOKEN`**：`gh` 在 Actions 裡沒有憑證就列舉不到，配上 fail closed 會讓紅燈的意思變成
+  「檢查器壞了」。
+
+**證據**：`npx jest` → 84 suites / 618 tests 全過（新增 9 條契約測試）；eslint 無輸出；實跑檢查器
+exit 0，報告多出兩節，分別停在 `#374` 與 `#375`、之後皆無新項目。

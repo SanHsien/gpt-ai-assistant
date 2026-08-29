@@ -97,6 +97,76 @@ export const collectNewCommits = (baseline, ref, { cwd = REPO_ROOT, git = runGit
 
 const escapeCell = (value) => String(value).replaceAll('|', '\\|');
 
+export const upstreamSlug = (repoUrl) => {
+  const match = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/.exec(String(repoUrl));
+  return match ? `${match[1]}/${match[2]}` : null;
+};
+
+export const runGh = (args) => {
+  const result = spawnSync('gh', args, { cwd: REPO_ROOT, encoding: 'utf8' });
+  if (result.error || result.status !== 0) return null;
+  return result.stdout;
+};
+
+// 回傳 null 而不是 []：「沒查到」和「沒有」在綠色報告裡長得一樣，只有一個是真的，
+// 把兩者混成一個就是 fork 在沒有人決定的情況下停止注意上游的方式。
+//
+// `--state all` 是刻意的：一個項目在兩次排程之間被開了又關，對本 repo 來說仍然是
+// 從沒審過；而**未合併就關閉**的 PR 永遠不會出現在 commit 軸上，那正是「上游拒收、
+// 但可能對本線有價值」的一類。
+export const collectNewTickets = (baseline, kind, { gh = runGh } = {}) => {
+  const slug = upstreamSlug(baseline.repo);
+  if (!slug) return null;
+  const field = kind === 'pr' ? 'reviewedPrThrough' : 'reviewedIssueThrough';
+  const reviewedThrough = Number(baseline[field] || 0);
+  const raw = gh([
+    kind, 'list', '--repo', slug, '--state', 'all',
+    '--limit', '1000', '--json', 'number,title',
+  ]);
+  if (raw === null || raw === undefined) return null;
+  let items;
+  try {
+    items = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(items)) return null;
+  return items
+    .filter((item) => Number(item.number) > reviewedThrough)
+    .sort((left, right) => Number(left.number) - Number(right.number));
+};
+
+const renderTicketSection = (title, reviewedThrough, tickets, field) => {
+  const lines = [`## ${title}`, '', `已審視至 \`#${reviewedThrough}\`（查詢用 \`--state all\`）。`, ''];
+  if (tickets === null) {
+    lines.push(
+      '**未檢查**：`gh` 無法使用、未登入，或 baseline 沒有指向 GitHub repo。',
+      '照實回報而不是寫成「沒有待審項目」——這兩件事只有一件是真的。',
+      '',
+    );
+    return lines;
+  }
+  if (tickets.length === 0) {
+    lines.push('該編號之後沒有新項目。', '');
+    return lines;
+  }
+  lines.push(`該編號之後有 ${tickets.length} 筆待審視。`, '', '| 項目 | 標題 |', '| --- | --- |');
+  for (const ticket of tickets) {
+    lines.push(`| #${ticket.number} | ${escapeCell(ticket.title)} |`);
+  }
+  lines.push(
+    '',
+    `逐筆判斷後把理由寫進 \`docs/DECISIONS.md\`，再推進 baseline 的 \`${field}\`。`,
+    '',
+  );
+  return lines;
+};
+
+export const renderTicketMarkdown = (baseline, prs, issues) => [
+  ...renderTicketSection('上游 Pull requests', Number(baseline.reviewedPrThrough || 0), prs, 'reviewedPrThrough'),
+  ...renderTicketSection('上游 Issues', Number(baseline.reviewedIssueThrough || 0), issues, 'reviewedIssueThrough'),
+].join('\n');
+
 export const renderMarkdown = (baseline, commits, { checkError = '' } = {}) => {
   const lines = [
     '# 上游更新檢查',
@@ -187,6 +257,8 @@ export const main = (args = process.argv.slice(2)) => {
   };
   let commits = [];
   let checkError = '';
+  let prs = null;
+  let issues = null;
 
   try {
     baseline = loadBaseline();
@@ -196,20 +268,41 @@ export const main = (args = process.argv.slice(2)) => {
     checkError = error.message;
   }
 
-  const report = renderMarkdown(baseline, commits, { checkError });
+  if (!checkError) {
+    // baseline 一直記著 reviewedPrThrough / reviewedIssueThrough，卻沒有任何程式
+    // 讀它們——那兩個面向不是「查過沒發現」，是根本沒查，而報告綠的理由跟那兩個
+    // 欄位還不存在時完全一樣。
+    prs = collectNewTickets(baseline, 'pr');
+    issues = collectNewTickets(baseline, 'issue');
+  }
+
+  let report = renderMarkdown(baseline, commits, { checkError });
+  if (!checkError) {
+    report = `${report.trimEnd()}\n\n${renderTicketMarkdown(baseline, prs, issues)}`;
+  }
   writeFileSync(options.output, report, 'utf8');
   process.stdout.write(report);
 
+  // fail closed：列舉不到 ticket 的那一次執行，不可以因為 commit 軸安靜就被讀成
+  // 「上游沒事」。
+  const ticketsUnavailable = !checkError && (prs === null || issues === null);
+  const ticketCount = (prs || []).length + (issues || []).length;
+
   if (options.githubOutput) {
     writeGithubOutput({
-      needsAttention: commits.length > 0 || Boolean(checkError),
-      checkFailed: Boolean(checkError),
+      needsAttention:
+        commits.length > 0 || ticketCount > 0 || Boolean(checkError) || ticketsUnavailable,
+      checkFailed: Boolean(checkError) || ticketsUnavailable,
       reportPath: options.output,
     });
   }
 
   if (checkError) return 2;
-  if (options.strict && commits.length > 0) return 1;
+  if (ticketsUnavailable) {
+    process.stderr.write('ERROR: gh 無法列舉上游的 PR 或 issue。\n');
+    return 2;
+  }
+  if (options.strict && (commits.length > 0 || ticketCount > 0)) return 1;
   return 0;
 };
 
