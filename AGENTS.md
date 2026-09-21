@@ -36,6 +36,7 @@
 
 - 一般變更直接推 `origin/main`，不開功能分支、不開維護 PR（2026-08-22 起）。只有在需要他人審查、或改動風險高到值得先讓 CI 在 PR 上跑一輪時，才退回 **branch → PR → CI → merge**。
 - 改行為前先讀 `config/index.js` 與相關 service / repository / contract，確認 feature flag、預設值與 durable 路徑。
+- 涉及金鑰、webhook、durable queue、migration、Google sync 或 production smoke 時，先讀相關實作與 `docs/DEVELOPMENT.md`，不要從 README 推測完整操作。
 - 新增 LINE 指令時沿用既有 `handlers/` + `commands/` 模式；不要另建平行 command framework。
 - 會造成付費 API 呼叫的流程要維持「運算完成」與「LINE 送達」分離，重試不得無意重跑付費工作。
 - 資料寫入、queue claim、Google sync、reminder lifecycle 等一致性修改要優先補 repository / service 級回歸測試。
