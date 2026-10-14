@@ -1,13 +1,14 @@
 # 專案覆核
 
-最後補充：2026-10-14，PR #28 本機候選；下方 `6.1.0` Production 證據仍屬 2026-08-08 基線。
+最後補充：2026-10-14，PR #28 已發布候選 `97dc6cd`；下方 `6.1.0` Production 證據仍屬 2026-08-08 基線。
 
 ## PR #28 候選補充（2026-10-14）
 
 - **已修復、已發布至 PR 候選**：`b686bd3` 已包含 Express 實際使用的 `proxy-addr` 官方修正版 `2.0.8`；安全回歸先重現 4 項失敗，再通過 9 項測試。自架 OAuth 限流不再信任用戶提供的 `x-real-ip`，只有程序 `VERCEL=1` 且 header 為合法 IP 才採用平台值；IPv6 保留 `/56` 分桶。尚未合併 main，不代表 Production 已驗收。
-- **本機深度保護、尚未發布**：開發依賴 `nodemon → chokidar → braces@3.0.3` 的 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)（high）尚無官方修正版；候選以安裝時版本／來源雜湊綁定的 parser guard 限制最多 63 層 curly／paren。實際消費套件在 256 KiB Node stack 下先重現 `Maximum call stack size exceeded`，保護後以受控 `SyntaxError` 拒絕；一般 glob、混合／不平衡／轉義、63／64／65 邊界與正常 nodemon 監看重啟／忽略均通過。registry audit 仍會列出此 advisory，不能宣稱官方依賴已修復。
-- **例外尚待評定**：Jest／Babel 工具鏈 `argparse → sprintf-js@1.0.3` 的 [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)（moderate）未改格式語意或套用補丁。fresh Node 真實 `load-nyc-config` 讀 YAML fixture，證明格式字串仍為資料、`argparse`／`sprintf-js` 未載入；真實 js-yaml CLI 靜態 help 也通過。Docker `--omit=dev` 的實際 image 內容尚未本機驗證，故例外仍待評定。2026-10-13 修正 `proxy-addr` 後的 audit 仍列 19 moderate、3 high，對應上述兩項 advisory；下方歷史 `audit 0` 不代表目前狀態。
-- **本機驗證**：Node `26.8.1`，乾淨 `npm ci` 自動套用 guard，聚焦 2 suites／11 tests、完整 88 suites／647 tests、eslint 與原生 ESM module-load 通過；五個 SDK 共 290 個檔案與先前離線驗證完全相同，沿用該證據。Docker CLI 本機不可用，image build／health 留待 CI；候選 workflow 已加入 image 內的開發模組缺席檢查，須待該步真正通過才能採用 image 證據。這些結果不代表 Node 24 hosted runtime 或新候選 Production 驗收完成，staging durable、Google token 更新與 private Blob 實機驗收仍待完成。
+- **深度保護已發布至 PR 候選**：`97dc6cd` 包含開發依賴 `nodemon → chokidar → braces@3.0.3` 的本機 guard；[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)（high）尚無官方修正版。安裝時版本／來源雜湊綁定的 parser guard 限制最多 63 層 curly／paren。實際消費套件在 256 KiB Node stack 下先重現 `Maximum call stack size exceeded`，保護後以受控 `SyntaxError` 拒絕；一般 glob、混合／不平衡／轉義、63／64／65 邊界與正常 nodemon 監看重啟／忽略均通過。registry audit 仍會列出此 advisory，不能宣稱官方依賴已修復。
+- **已採納限期開發依賴例外**：獨立覆核與主代理決定接受 [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)（moderate）的有限例外，**到期日為 2026-11-13**。只涵蓋目前開發依賴 `Jest／Babel → load-nyc-config@1.1.0 → js-yaml@3.15.2 → argparse@1.0.10 → sprintf-js@1.0.3`，以及已檢視的 js-yaml 套件內靜態 CLI help；不涵蓋任意 formatter、plugin 或其他 CLI。fresh Node 真實 `load-nyc-config` 讀 YAML fixture，證明精度格式字串仍為資料、`argparse`／`sprintf-js` 未載入；真實 js-yaml CLI 靜態 help 通過，CI 亦證明 production image 從 `/app` 無法解析這些開發模組。未改 sprintf 格式語意或套用補丁，漏洞與 registry 警報仍存在；2026-10-13 修正 `proxy-addr` 後的 audit 仍列 19 moderate、3 high，對應上述兩項 advisory，下方歷史 `audit 0` 不代表目前狀態。
+- **例外撤銷條件**：到期，或相依版本／integrity／呼叫路徑改變、開發依賴轉為 production／新增 runtime import、新增外部或動態來源的 format／help／usage template、實際外部輸入進入 formatter，以及可相容官方修正版或受支援的依賴鏈移除方案可用時，立即撤銷並重新評估；不得沿用這次例外接受新的路徑。
+- **候選驗證已通過**：本機 Node `26.8.1` 的乾淨 `npm ci` 自動套用 guard，聚焦 2 suites／11 tests、完整 88 suites／647 tests、eslint 與原生 ESM module-load 通過；五個 SDK 共 290 個檔案與先前離線驗證完全相同，沿用該證據。[CI 38592473286](https://github.com/SanHsien/gpt-ai-assistant/actions/runs/38592473286) 在 Node `24.21.0` 通過 88 suites／647 tests、lint、module-load、production image build 與 health；實際 image 的 `/app` 解析檢查確認 `nodemon`、`chokidar`、`braces`、`argparse`、`sprintf-js`、`jest`、`@jest/core`、`babel-jest` 八個開發模組缺席。[CodeQL 38592473151](https://github.com/SanHsien/gpt-ai-assistant/actions/runs/38592473151) 也通過。這些 PR CI 證據來自綁定候選 `97dc6cd` 的 merge ref `4646368`，尚未取代合併後 main 驗收；staging durable、Google token 更新、private Blob 與 Production 實機驗收仍未完成。
 
 ## 結論
 
