@@ -5,6 +5,8 @@ ENV NODE_ENV=production \
     APP_PORT=3000
 
 COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node tools/apply-dev-dependency-guards.cjs ./tools/
+COPY --chown=node:node tools/dependency-guards/ ./tools/dependency-guards/
 RUN npm ci --omit=dev --no-audit --no-fund
 
 COPY --chown=node:node . .

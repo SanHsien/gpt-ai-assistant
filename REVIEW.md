@@ -4,9 +4,10 @@
 
 ## PR #28 候選補充（2026-10-14）
 
-- **已修復、尚未發布**：Express 實際使用的 `proxy-addr` 升至官方修正版 `2.0.8`；安全回歸先重現 4 項失敗，再通過 9 項測試。自架 OAuth 限流不再信任用戶提供的 `x-real-ip`，只有程序 `VERCEL=1` 且 header 為合法 IP 才採用平台值；IPv6 保留 `/56` 分桶。
-- **仍待處理**：開發依賴 `nodemon → chokidar → braces@3.0.3` 的 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)（high），以及 Jest／Babel 工具鏈 `argparse → sprintf-js@1.0.3` 的 [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)（moderate），查核時均無官方修正版。兩者是既有開發依賴問題，並非本 PR 引入；尚未修補或核准例外，不得沿用下方歷史 `audit 0` 作目前結論。修正 `proxy-addr` 後仍有 19 moderate、3 high 的相依套件警報，對應上述兩項 advisory。
-- **本機驗證**：Node `26.8.1`，聚焦 3 suites／34 tests、完整 85 suites／635 tests、eslint 與原生 ESM module-load 通過；真 SDK 離線驗證已完成。這些結果不代表 Node 24 hosted runtime 或新候選 Production 驗收完成；staging durable、Google token 更新與 private Blob 實機驗收仍待完成。
+- **已修復、已發布至 PR 候選**：`b686bd3` 已包含 Express 實際使用的 `proxy-addr` 官方修正版 `2.0.8`；安全回歸先重現 4 項失敗，再通過 9 項測試。自架 OAuth 限流不再信任用戶提供的 `x-real-ip`，只有程序 `VERCEL=1` 且 header 為合法 IP 才採用平台值；IPv6 保留 `/56` 分桶。尚未合併 main，不代表 Production 已驗收。
+- **本機深度保護、尚未發布**：開發依賴 `nodemon → chokidar → braces@3.0.3` 的 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)（high）尚無官方修正版；候選以安裝時版本／來源雜湊綁定的 parser guard 限制最多 63 層 curly／paren。實際消費套件在 256 KiB Node stack 下先重現 `Maximum call stack size exceeded`，保護後以受控 `SyntaxError` 拒絕；一般 glob、混合／不平衡／轉義、63／64／65 邊界與正常 nodemon 監看重啟／忽略均通過。registry audit 仍會列出此 advisory，不能宣稱官方依賴已修復。
+- **例外尚待評定**：Jest／Babel 工具鏈 `argparse → sprintf-js@1.0.3` 的 [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)（moderate）未改格式語意或套用補丁。fresh Node 真實 `load-nyc-config` 讀 YAML fixture，證明格式字串仍為資料、`argparse`／`sprintf-js` 未載入；真實 js-yaml CLI 靜態 help 也通過。Docker `--omit=dev` 的實際 image 內容尚未本機驗證，故例外仍待評定。2026-10-13 修正 `proxy-addr` 後的 audit 仍列 19 moderate、3 high，對應上述兩項 advisory；下方歷史 `audit 0` 不代表目前狀態。
+- **本機驗證**：Node `26.8.1`，乾淨 `npm ci` 自動套用 guard，聚焦 2 suites／11 tests、完整 88 suites／647 tests、eslint 與原生 ESM module-load 通過；五個 SDK 共 290 個檔案與先前離線驗證完全相同，沿用該證據。Docker CLI 本機不可用，image build／health 留待 CI；候選 workflow 已加入 image 內的開發模組缺席檢查，須待該步真正通過才能採用 image 證據。這些結果不代表 Node 24 hosted runtime 或新候選 Production 驗收完成，staging durable、Google token 更新與 private Blob 實機驗收仍待完成。
 
 ## 結論
 

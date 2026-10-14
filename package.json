@@ -16,6 +16,10 @@
   },
   "homepage": "https://github.com/SanHsien/gpt-ai-assistant#readme",
   "scripts": {
+    "postinstall": "node tools/apply-dev-dependency-guards.cjs",
+    "check:dev-guards": "node tools/apply-dev-dependency-guards.cjs --check",
+    "predev": "npm run check:dev-guards",
+    "pretest": "npm run check:dev-guards",
     "check:dependencies": "node tools/check-dependency-freshness.js",
     "check:dependabot-policy": "node tools/classify-dependabot-update.js",
     "check:upstream": "node tools/check-upstream-updates.js",

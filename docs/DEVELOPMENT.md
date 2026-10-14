@@ -76,6 +76,8 @@ webhook 驗簽／DB 冪等／enqueue／快速 ACK
 
 需要 Node.js 24（與 CI、Vercel 及 Docker image 一致）。
 
+`npm ci` 的 `postinstall` 會對 nodemon → chokidar 實際使用的 `braces@3.0.3` 套用版本與 SHA-256 綁定的巢狀深度保護：最多 63 層 curly／paren，超過即以受控 `SyntaxError` 停止解析。未知版本或來源雜湊會讓安裝失敗；同一修正版可重複驗證。`npm run dev`／`npm test` 先檢查 guard；使用 `--ignore-scripts` 後須先執行 `node tools/apply-dev-dependency-guards.cjs`，再跑 `npm run check:dev-guards`，不能把未套用 guard 的測試當通過。production `--omit=dev` 只有 nodemon 與 chokidar 均不存在時才略過。此本機保護不會消除 registry audit 警報；`sprintf-js` 未套用補丁。
+
 ```bash
 npm ci
 npx eslint .          # ESLint flat config（見 eslint.config.js；無 npm script）

@@ -31,6 +31,25 @@ jobs:
       - name: Build production image
         run: docker build --tag gpt-ai-assistant:smoke .
 
+      - name: Verify development modules are absent from production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --interactive --entrypoint node gpt-ai-assistant:smoke - <<'NODE'
+          const modules = ['nodemon', 'chokidar', 'braces', 'argparse', 'sprintf-js', 'jest', '@jest/core', 'babel-jest'];
+          for (const name of modules) {
+            try {
+              require.resolve(name, { paths: ['/app'] });
+              throw new Error(`Development module present in production image: ${name}`);
+            } catch (error) {
+              if (error.code !== 'MODULE_NOT_FOUND' || !error.message.startsWith(`Cannot find module '${name}'`)) {
+                throw error;
+              }
+            }
+          }
+          console.log(JSON.stringify({ status: 'PASS', developmentModulesAbsent: modules }));
+          NODE
+
       - name: Verify default port and image healthcheck
         shell: bash
         run: |
