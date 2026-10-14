@@ -1,6 +1,12 @@
 # 專案覆核
 
-最後覆核：2026-08-08，版本 `6.1.0`。
+最後補充：2026-10-14，PR #28 本機候選；下方 `6.1.0` Production 證據仍屬 2026-08-08 基線。
+
+## PR #28 候選補充（2026-10-14）
+
+- **已修復、尚未發布**：Express 實際使用的 `proxy-addr` 升至官方修正版 `2.0.8`；安全回歸先重現 4 項失敗，再通過 9 項測試。自架 OAuth 限流不再信任用戶提供的 `x-real-ip`，只有程序 `VERCEL=1` 且 header 為合法 IP 才採用平台值；IPv6 保留 `/56` 分桶。
+- **仍待處理**：開發依賴 `nodemon → chokidar → braces@3.0.3` 的 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)（high），以及 Jest／Babel 工具鏈 `argparse → sprintf-js@1.0.3` 的 [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)（moderate），查核時均無官方修正版。兩者是既有開發依賴問題，並非本 PR 引入；尚未修補或核准例外，不得沿用下方歷史 `audit 0` 作目前結論。修正 `proxy-addr` 後仍有 19 moderate、3 high 的相依套件警報，對應上述兩項 advisory。
+- **本機驗證**：Node `26.8.1`，聚焦 3 suites／34 tests、完整 85 suites／635 tests、eslint 與原生 ESM module-load 通過；真 SDK 離線驗證已完成。這些結果不代表 Node 24 hosted runtime 或新候選 Production 驗收完成；staging durable、Google token 更新與 private Blob 實機驗收仍待完成。
 
 ## 結論
 
@@ -10,7 +16,7 @@
 
 Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收斂為共用 contract。Calendar mapped timed non-recurring inbound、primary calendar 上未來 timed non-recurring Google-origin baseline／增量匯入，以及 Tasks mapped inbound/outbound 在契約內；全天 inbound、recurrence series／exception、非 primary 匯入及 Tasks due 回收仍明確不支援。RC.4 完成 Express 5、Jest 30、ESLint 10 flat config、注入式 bot source repository 與容器 port／liveness fail-safe；rc.5 補 Tasks API 前置與 dead job 恢復；rc.6 修正實機發現的週期行程 UTC offset 重複套用，並讓確認摘要明列重複規則。
 
-## 驗證
+## 歷史驗證（2026-08-08 基線）
 
 - `npm ci`：成功；`npm audit --audit-level=high`：0 vulnerabilities。
 - `npx eslint .`：通過；`npm run test:module-load`：原生 Node ESM 載入通過。

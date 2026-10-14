@@ -1,4 +1,5 @@
 import express from 'express';
+import { isIP } from 'node:net';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { printPrompts } from '../app/index.js';
 import { enqueueEvents } from '../app/webhook.js';
@@ -26,7 +27,11 @@ const oauthRateLimit = rateLimit({
   limit: 20,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(String(req.headers['x-real-ip'] || req.ip || 'unknown')),
+  keyGenerator: (req) => {
+    const platformIp = config.IS_VERCEL ? req.headers['x-real-ip'] : null;
+    const ip = typeof platformIp === 'string' && isIP(platformIp) ? platformIp : req.ip;
+    return ipKeyGenerator(typeof ip === 'string' && isIP(ip) ? ip : 'unknown');
+  },
 });
 
 app.use(express.json({

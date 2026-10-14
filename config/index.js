@@ -11,6 +11,7 @@ const imageGenerationModel = env.OPENAI_IMAGE_GENERATION_MODEL || 'gpt-image-2';
 
 const config = Object.freeze({
   APP_ENV: env.NODE_ENV || 'production',
+  IS_VERCEL: env.VERCEL === '1',
   APP_DEBUG: env.APP_DEBUG === 'true' || false,
   APP_URL: env.APP_URL || null,
   APP_PORT: env.APP_PORT || null,
