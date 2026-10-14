@@ -2,6 +2,7 @@ import {
   afterEach, expect, jest, test,
 } from '@jest/globals';
 
+let oauthLimiterOptions;
 let postHandler;
 let postHandlers;
 let enqueueEvents;
@@ -18,8 +19,10 @@ const load = async ({
   remindersEnabled = false,
   googleEnabled = false,
   appLang = 'zh_TW',
+  vercel = false,
 } = {}) => {
   jest.resetModules();
+  oauthLimiterOptions = null;
   postHandler = null;
   postHandlers = {};
   getHandlers = {};
@@ -44,6 +47,16 @@ const load = async ({
   express.json = jest.fn(() => jest.fn());
 
   jest.doMock('express', () => ({ __esModule: true, default: express }));
+  jest.doMock('express-rate-limit', () => {
+    const actual = jest.requireActual('express-rate-limit');
+    return {
+      ...actual,
+      rateLimit: (options) => {
+        oauthLimiterOptions = options;
+        return actual.rateLimit(options);
+      },
+    };
+  });
   jest.doMock('../../app/index.js', () => ({
     handleEvents,
     printPrompts: jest.fn(),
@@ -53,6 +66,7 @@ const load = async ({
     __esModule: true,
     default: {
       APP_LANG: appLang,
+      IS_VERCEL: vercel,
       APP_DEBUG: false,
       APP_PORT: null,
       APP_URL: null,
@@ -238,4 +252,45 @@ test('minute cron drains reminders and Google Calendar delivery jobs', async () 
   });
   expect(backfillTaskReminders).toHaveBeenCalled();
   expect(res.status).toHaveBeenCalledWith(200);
+});
+
+
+test('self-hosted OAuth buckets ignore forged client IP and platform HTTP headers', async () => {
+  await load();
+  const key = oauthLimiterOptions.keyGenerator;
+  const first = key({ ip: '203.0.113.9', headers: { 'x-real-ip': '198.51.100.1', vercel: '1' } });
+  const second = key({ ip: '203.0.113.9', headers: { 'x-real-ip': '198.51.100.2', 'x-vercel-id': 'fake' } });
+  expect(first).toBe('203.0.113.9');
+  expect(second).toBe(first);
+});
+
+test('Vercel OAuth buckets use valid platform IPv4 and IPv6 with socket fallback', async () => {
+  await load({ vercel: true });
+  const key = oauthLimiterOptions.keyGenerator;
+  expect(key({ ip: '192.0.2.1', headers: { 'x-real-ip': '198.51.100.17' } })).toBe('198.51.100.17');
+  const a = key({ ip: '192.0.2.1', headers: { 'x-real-ip': '2001:db8:1234:5600::1' } });
+  const b = key({ ip: '192.0.2.1', headers: { 'x-real-ip': '2001:db8:1234:5600::2' } });
+  expect(a).toBe(b);
+  expect(a).not.toBe('2001:db8:1234:5600::1');
+  expect(key({ ip: '192.0.2.1', headers: {} })).toBe('192.0.2.1');
+});
+
+test('Vercel OAuth buckets reject invalid or repeated platform headers', async () => {
+  await load({ vercel: true });
+  const key = oauthLimiterOptions.keyGenerator;
+  for (const header of ['invalid', '198.51.100.1, 198.51.100.2', ['198.51.100.1'], '']) {
+    expect(key({ ip: '192.0.2.1', headers: { 'x-real-ip': header } })).toBe('192.0.2.1');
+  }
+  expect(key({ headers: { 'x-real-ip': 'invalid' } })).toBe('unknown');
+  expect(key({ ip: 'invalid', headers: {} })).toBe('unknown');
+});
+
+test('self-hosted OAuth buckets retain IPv6 subnet grouping without client headers', async () => {
+  await load();
+  const key = oauthLimiterOptions.keyGenerator;
+  const a = key({ ip: '2001:db8:1234:5600::1', headers: { 'x-real-ip': '198.51.100.1' } });
+  const b = key({ ip: '2001:db8:1234:5600::2', headers: { 'x-real-ip': '198.51.100.2' } });
+  expect(a).toBe('2001:db8:1234:5600::/56');
+  expect(b).toBe(a);
+  expect(key({ headers: { 'x-real-ip': '198.51.100.1' } })).toBe('unknown');
 });

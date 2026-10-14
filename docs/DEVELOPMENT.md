@@ -76,6 +76,8 @@ webhook 驗簽／DB 冪等／enqueue／快速 ACK
 
 需要 Node.js 24（與 CI、Vercel 及 Docker image 一致）。
 
+`npm ci` 的 `postinstall` 會對 nodemon → chokidar 實際使用的 `braces@3.0.3` 套用版本與 SHA-256 綁定的巢狀深度保護：最多 63 層 curly／paren，超過即以受控 `SyntaxError` 停止解析。未知版本或來源雜湊會讓安裝失敗；同一修正版可重複驗證。`npm run dev`／`npm test` 先檢查 guard；使用 `--ignore-scripts` 後須先執行 `node tools/apply-dev-dependency-guards.cjs`，再跑 `npm run check:dev-guards`，不能把未套用 guard 的測試當通過。production `--omit=dev` 只有 nodemon 與 chokidar 均不存在時才略過。此本機保護不會消除 registry audit 警報；`sprintf-js` 未套用補丁。
+
 ```bash
 npm ci
 npx eslint .          # ESLint flat config（見 eslint.config.js；無 npm script）
@@ -321,7 +323,7 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 
 - Calendar 只要求 Google 官方列出的 `https://www.googleapis.com/auth/calendar.events.owned`，不要求讀寫所有可存取日曆的完整 `calendar` scope；只有開啟 `ENABLE_GOOGLE_TASKS` 時才另外要求 `https://www.googleapis.com/auth/tasks`。
 - OAuth state 只以 SHA-256 保存且只能 `DELETE ... RETURNING` 消費一次；S256 PKCE verifier 與 access/refresh token 使用 `DATA_ENCRYPTION_KEY` 加密。
-- OAuth callback／完成頁另以 `express-rate-limit` 依 Vercel `x-real-ip` 限制 15 分鐘 20 次；正式安全邊界仍以不可猜、一次性 state 為主，因 serverless instance-local limiter 不是全域配額系統。
+- OAuth callback／完成頁另以 `express-rate-limit` 限制 15 分鐘 20 次。只有程序環境 `VERCEL=1` 時採用 Vercel 提供且格式合法的 `x-real-ip`；自架環境、缺少或非法平台 header 一律使用 Express `req.ip`，不以 HTTP header 判斷平台。IPv6 依 SDK 預設 `/56` 子網分桶，無合法 IP 時共用 `unknown` 桶。正式安全邊界仍以不可猜、一次性 state 為主，因 serverless instance-local limiter 不是全域配額系統。
 - LINE URI action 預設在 in-app browser 開啟，但 Google OAuth 禁止 embedded user-agent；授權 URL 會依 LINE 規格自動加 `openExternalBrowser=1`，改用 Safari／Chrome。
 - 新增行程以本地 UUID 產生 deterministic Google event id；worker 重試收到 `409` 代表前次已寫入，不再建立第二筆。
 - 同步上限預設 3 次，內部 backoff 為 5 秒、10 秒；由於 Supabase Cron 每分鐘唤醒，沒有新 webhook 時通常會在約 2 分鐘內完成三次嘗試。前兩次失敗不通知；成功或最終失敗才用 LINE Push 發一則狀態。

@@ -1,0 +1,18 @@
+{
+  "package": "braces",
+  "version": "3.0.3",
+  "advisory": "GHSA-vfj7-8cjw-p6xm",
+  "maxOpenNesting": 63,
+  "originalSha256": "e572166565f15fa6ad9865ae49d678218e32aabfd1b3720f6d0d43d39800d310",
+  "patchedSha256": "43638d05f2ec77dd9fa20870eb0d2dbbe30da366c03c625b577b740f0f45391b",
+  "replacements": [
+    {
+      "before": "      block = push({ type: 'paren', nodes: [] });\n      stack.push(block);",
+      "after": "      block = push({ type: 'paren', nodes: [] });\n      if (stack.length >= 64) {\n        throw new SyntaxError('Pattern nesting exceeds the safe limit of 63');\n      }\n      stack.push(block);"
+    },
+    {
+      "before": "      block = push(brace);\n      stack.push(block);",
+      "after": "      block = push(brace);\n      if (stack.length >= 64) {\n        throw new SyntaxError('Pattern nesting exceeds the safe limit of 63');\n      }\n      stack.push(block);"
+    }
+  ]
+}

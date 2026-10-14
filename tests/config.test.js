@@ -6,8 +6,11 @@ const originalModel = process.env.OPENAI_IMAGE_GENERATION_MODEL;
 const originalQuality = process.env.OPENAI_IMAGE_GENERATION_QUALITY;
 const originalTaskListLimit = process.env.TASK_LIST_LIMIT;
 const originalReminderOffsets = process.env.REMINDER_OFFSETS;
+const originalVercel = process.env.VERCEL;
 
 afterEach(() => {
+  if (originalVercel === undefined) delete process.env.VERCEL;
+  else process.env.VERCEL = originalVercel;
   if (originalModel === undefined) delete process.env.OPENAI_IMAGE_GENERATION_MODEL;
   else process.env.OPENAI_IMAGE_GENERATION_MODEL = originalModel;
   if (originalQuality === undefined) delete process.env.OPENAI_IMAGE_GENERATION_QUALITY;
@@ -17,6 +20,19 @@ afterEach(() => {
   if (originalReminderOffsets === undefined) delete process.env.REMINDER_OFFSETS;
   else process.env.REMINDER_OFFSETS = originalReminderOffsets;
   jest.resetModules();
+});
+
+test.each([
+  [undefined, false],
+  ['true', false],
+  ['0', false],
+  ['1', true],
+])('recognizes Vercel only from the exact process marker %s', async (value, expected) => {
+  if (value === undefined) delete process.env.VERCEL;
+  else process.env.VERCEL = value;
+  jest.resetModules();
+  const { default: config } = await import('../config/index.js');
+  expect(config.IS_VERCEL).toBe(expected);
 });
 
 test('reminds one day before by default', async () => {
