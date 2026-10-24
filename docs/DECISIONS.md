@@ -2,6 +2,37 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-10-24 — 依賴安全警示：lockfile 升級 7 個傳遞依賴、zod 加 override，sprintf-js 無修補版
+
+**範圍**：Dependabot 4 筆 open alert，manifest 皆為 `package-lock.json`。
+
+- `proxy-addr` 2.0.7 → 2.0.8（critical，GHSA-jqcg-44mw-7w3h；經 `express@5.2.1`）。
+- `follow-redirects` 1.16.0 → 1.16.1（high ×2，GHSA-8r9p-f939-6h3c、GHSA-q3jh-wrc6-jgq8；經 `axios`）。
+  兩者皆為傳遞依賴、`package.json` 範圍已涵蓋，第一輪只用 `npm update <pkg> --ignore-scripts` 重生 lockfile，
+  這一輪不動 `package.json`（第三輪才加 override）。等同 Dependabot PR #31、#32，合併本 PR 後兩者會自動變成無差異。
+- `sprintf-js`（medium，GHSA-hp3w-g68c-fv3c，`<= 1.1.3`）：**沒有修補版本**，不處理。它只在
+  `babel-jest → babel-plugin-istanbul → @istanbuljs/load-nyc-config → js-yaml@3 → argparse@1 → sprintf-js@1.0.3`
+  這條 devDependency 鏈上，不進 production。重評條件：出現修補版，或該鏈換掉 js-yaml 3。
+- 第二輪（無 alert 但 `npm audit` 有修補版的 high／moderate）：`npm update body-parser content-type ip-address qs undici --ignore-scripts`
+  只動 lockfile 內的傳遞依賴小版本——body-parser 2.3.0→2.4.0（high，經 express）、undici 6.29.0→6.29.1（high，經 @vercel/blob）、
+  ip-address 10.7.2→10.7.4（moderate，經 express-rate-limit），連帶 content-type 2.0.0→2.1.0、qs 6.16.0→6.16.1。
+  `npm audit fix` 原本還會順手升 `@vercel/blob`、`@vercel/functions` 這兩個執行期直接依賴，這裡刻意不要，留給 #30。
+  audit 數字：修前 8（moderate 1、high 7），修後 5（high 5）。
+- 第三輪（zod，high，<4.6.6）：`package.json` 的 `overrides` 加上只限 `@vercel/cli-config` 底下的
+  `"@vercel/cli-config": { "zod": "4.6.7" }`（不是全域蓋 zod）。鏈：`@vercel/blob` → `@vercel/oidc` → `@vercel/cli-config` → `zod`。
+  `@vercel/cli-config`（含最新版 0.3.3）把 zod 釘死在 4.1.11，in-range 升級修不掉。
+  **這個 override 沒有改變實際執行的程式**：`@vercel/cli-config` 的 `main` 與 `exports["."]` 都指向 `dist/index.js`，那是自成一體的
+  bundle，內含自己的 zod 4.1.11；`require("zod")` 只出現在 exports 不會載入的 dist 子檔（`cli-config.js`、`schema.js`、`schema.zod.js`）。
+  實測載入 `@vercel/cli-config` 與 `@vercel/oidc` 後，require cache 裡沒有任何 `node_modules/zod` 檔案。所以 override 只替換了
+  未打包的 `node_modules/zod`，行為與暴露面都沒變。先前對 `dist/cli-config.js` 做的 API 相容檢查不是執行期證據，不採用。
+  **可以接受的理由是可達性，不是已修**：bundle 內的 zod 只用來解析開發機本機 Vercel CLI 的 auth.json／config.json（可信檔案），
+  部署後的執行環境以環境變數取得 token，不會用到它。`npm audit` 顯示 0 只代表掃描器的結果，不代表漏洞已消除。
+  移除條件：`@vercel/cli-config` 發新版，且新版打包（或依賴）的 zod ≥ 4.6.6 才算真的修好；只是放寬宣告的版本範圍不算。
+  到時移除此 override。audit 數字：修前 5（high 5），修後 0。
+
+- Dependabot PR #30（production-dependencies 群組，6 個執行期依賴含 `express` 5.2.1→5.3.0）與任何 alert 無關，
+  執行期依賴依既有流程保留人工審查，不在本次折入。
+
 ## 2026-08-23 — Agentic Vision：採用設計線索，暫不導入文章實作
 
 **來源**：[Evan Lin 的 LINE Bot Agentic Vision 實作紀錄](https://www.evanlin.com/agentic-vision/)、
