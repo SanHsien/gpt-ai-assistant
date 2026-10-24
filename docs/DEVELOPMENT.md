@@ -562,4 +562,4 @@ CI：`.github/workflows/ci.yml` 在每次 push / PR 對 `main` 跑 `npm ci` → 
 則自動關閉。逐筆決策寫 `DECISIONS.md`，驗證後才推進 baseline。本機執行：`npm run check:upstream`。
 
 - 本 repo 源自 [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant)（MIT），來源脈絡包含上游 [`d84c806`](https://github.com/memochou1993/gpt-ai-assistant/commit/d84c806b8368ded9d790067235827cdac32a23ab)，公開 Git 歷史於 2026-07-18 以目前快照初始化，現為獨立維護 repository。fermi 不直接合併原始碼；上游活躍度、回貢、架構與授權評估見 [`ROADMAP.md`](ROADMAP.md)。
-- 本專案維持 OpenAI + LINE、自架、自備 API key，並已核准依 [`ROADMAP.md`](ROADMAP.md) 演進為個人助理。OpenAI / ChatGPT 訂閱 OAuth 仍不適合取代 API key。未來 Claude 版仍屬候選方向；硬性禁令見 [`../CLAUDE.md`](../CLAUDE.md) 與 [`../AGENTS.md`](../AGENTS.md)。
+- 本專案維持 OpenAI + LINE、自架、自備 API key，並已核准依 [`ROADMAP.md`](ROADMAP.md) 演進為個人助理。OpenAI / ChatGPT 訂閱 OAuth 仍不適合取代 API key。未來 Claude 版仍屬候選方向；硬性禁令見 [`../AGENTS.md`](../AGENTS.md)。

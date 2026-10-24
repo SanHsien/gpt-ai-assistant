@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本檔是 **SanHsien/gpt-ai-assistant** 的 AI coding agent 主要維護規則。Claude 專屬薄入口見 [`CLAUDE.md`](CLAUDE.md)，快速索引見 [`SKILL.md`](SKILL.md)；衝突時以本檔為準。
+本檔是 **SanHsien/gpt-ai-assistant** 的 AI coding agent 主要維護規則。快速索引見 [`SKILL.md`](SKILL.md)；衝突時以本檔為準。
 
 ## 專案定位
 
