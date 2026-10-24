@@ -18,10 +18,17 @@
   ip-address 10.7.2→10.7.4（moderate，經 express-rate-limit），連帶 content-type 2.0.0→2.1.0、qs 6.16.0→6.16.1。
   `npm audit fix` 原本還會順手升 `@vercel/blob`、`@vercel/functions` 這兩個執行期直接依賴，這裡刻意不要，留給 #30。
   audit 數字：修前 8（moderate 1、high 7），修後 5（high 5）。
-- 延後：`zod`（high，<4.6.6）及其鏈 `@vercel/blob`、`@vercel/functions` → `@vercel/oidc` → `@vercel/cli-config` → `zod`。
-  `@vercel/cli-config` 連最新版 0.3.3 都把 zod 釘死在 `4.1.11`（已實查 npm registry），所以任何 in-range 升級都修不掉；
-  `npm audit fix --force` 只會建議把 `@vercel/blob` 降到 2.4.0（錯誤方向）。唯一做法是 `overrides` 強制覆蓋第三方的釘死版本，
-  屬於跨主要版本風險，未測。重評條件：`@vercel/cli-config` 放寬 zod 版本，或其相依者發新版。
+- 第三輪（zod，high，<4.6.6）：不延後，改用只限 `@vercel/cli-config` 底下的 override
+  （`package.json` 的 `overrides`：`"@vercel/cli-config": { "zod": "4.6.7" }`，不是全域蓋 zod）。
+  鏈：`@vercel/blob` → `@vercel/oidc` → `@vercel/cli-config` → `zod`。`@vercel/cli-config`（含最新版 0.3.3）把 zod 釘死在
+  4.1.11，所以 in-range 升級修不掉；4.1.11→4.6.7 是同一個主要版本（4.x）。
+  相容性查證：`@vercel/cli-config/dist` 只用 `z.string/boolean/object/literal/union/number`、`.optional/.passthrough/.extend`、
+  `z.encode`（`cli-config.js`）、`z.ZodError` 與 `error.issues`（`cli-config.js` 的 `normalizeConfigError`）。這些在 4.6.7 都存在；
+  實測在 4.6.7 下 auth.json 讀寫往返保留未知欄位，`credStorage` 填錯值時仍拋出正規化後的訊息
+  （`Invalid value for credStorage ... Expected one of: "auto", "file", "keyring"`）。呼叫路徑：`@vercel/oidc` 的
+  `token-util.js`／`token.js` 讀寫本機 Vercel CLI 的 auth 設定（本機開發取得 OIDC token 時），部署環境走環境變數 token，不經 zod。
+  移除條件：`@vercel/cli-config` 放寬 zod 版本限制（或鏈上套件發新版不再依賴它）時，刪掉這個 override。
+  audit 數字：修前 5（high 5），修後 0。
 
 - Dependabot PR #30（production-dependencies 群組，6 個執行期依賴含 `express` 5.2.1→5.3.0）與任何 alert 無關，
   執行期依賴依既有流程保留人工審查，不在本次折入。
