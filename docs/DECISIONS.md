@@ -22,7 +22,7 @@
   `"@vercel/cli-config": { "zod": "4.6.7" }`（不是全域蓋 zod）。鏈：`@vercel/blob` → `@vercel/oidc` → `@vercel/cli-config` → `zod`。
   `@vercel/cli-config`（含最新版 0.3.3）把 zod 釘死在 4.1.11，in-range 升級修不掉。
   **這個 override 沒有改變實際執行的程式**：`@vercel/cli-config` 的 `main` 與 `exports["."]` 都指向 `dist/index.js`，那是自成一體的
-  bundle，內含自己的 zod 4.1.11；`require("zod")` 只出現在 `dist/cli-config.js` 與 `dist/schema.zod.js`，exports 從不載入這兩個檔。
+  bundle，內含自己的 zod 4.1.11；`require("zod")` 只出現在 exports 不會載入的 dist 子檔（`cli-config.js`、`schema.js`、`schema.zod.js`）。
   實測載入 `@vercel/cli-config` 與 `@vercel/oidc` 後，require cache 裡沒有任何 `node_modules/zod` 檔案。所以 override 只替換了
   未打包的 `node_modules/zod`，行為與暴露面都沒變。先前對 `dist/cli-config.js` 做的 API 相容檢查不是執行期證據，不採用。
   **可以接受的理由是可達性，不是已修**：bundle 內的 zod 只用來解析開發機本機 Vercel CLI 的 auth.json／config.json（可信檔案），
