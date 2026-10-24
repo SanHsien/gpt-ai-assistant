@@ -13,6 +13,16 @@
 - `sprintf-js`（medium，GHSA-hp3w-g68c-fv3c，`<= 1.1.3`）：**沒有修補版本**，不處理。它只在
   `babel-jest → babel-plugin-istanbul → @istanbuljs/load-nyc-config → js-yaml@3 → argparse@1 → sprintf-js@1.0.3`
   這條 devDependency 鏈上，不進 production。重評條件：出現修補版，或該鏈換掉 js-yaml 3。
+- 第二輪（無 alert 但 `npm audit` 有修補版的 high／moderate）：`npm update body-parser content-type ip-address qs undici --ignore-scripts`
+  只動 lockfile 內的傳遞依賴小版本——body-parser 2.3.0→2.4.0（high，經 express）、undici 6.29.0→6.29.1（high，經 @vercel/blob）、
+  ip-address 10.7.2→10.7.4（moderate，經 express-rate-limit），連帶 content-type 2.0.0→2.1.0、qs 6.16.0→6.16.1。
+  `npm audit fix` 原本還會順手升 `@vercel/blob`、`@vercel/functions` 這兩個執行期直接依賴，這裡刻意不要，留給 #30。
+  audit 數字：修前 8（moderate 1、high 7），修後 5（high 5）。
+- 延後：`zod`（high，<4.6.6）及其鏈 `@vercel/blob`、`@vercel/functions` → `@vercel/oidc` → `@vercel/cli-config` → `zod`。
+  `@vercel/cli-config` 連最新版 0.3.3 都把 zod 釘死在 `4.1.11`（已實查 npm registry），所以任何 in-range 升級都修不掉；
+  `npm audit fix --force` 只會建議把 `@vercel/blob` 降到 2.4.0（錯誤方向）。唯一做法是 `overrides` 強制覆蓋第三方的釘死版本，
+  屬於跨主要版本風險，未測。重評條件：`@vercel/cli-config` 放寬 zod 版本，或其相依者發新版。
+
 - Dependabot PR #30（production-dependencies 群組，6 個執行期依賴含 `express` 5.2.1→5.3.0）與任何 alert 無關，
   執行期依賴依既有流程保留人工審查，不在本次折入。
 
