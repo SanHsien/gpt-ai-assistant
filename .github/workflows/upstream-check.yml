@@ -27,6 +27,7 @@ concurrency:
 
 jobs:
   check:
+    name: 上游更新檢查
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
