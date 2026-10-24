@@ -2,6 +2,20 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-10-24 — 依賴安全警示：lockfile 內升級兩個傳遞依賴，sprintf-js 無修補版
+
+**範圍**：Dependabot 4 筆 open alert，manifest 皆為 `package-lock.json`。
+
+- `proxy-addr` 2.0.7 → 2.0.8（critical，GHSA-jqcg-44mw-7w3h；經 `express@5.2.1`）。
+- `follow-redirects` 1.16.0 → 1.16.1（high ×2，GHSA-8r9p-f939-6h3c、GHSA-q3jh-wrc6-jgq8；經 `axios`）。
+  兩者皆為傳遞依賴、`package.json` 範圍已涵蓋，只用 `npm update <pkg> --ignore-scripts` 重生 lockfile，
+  不動 `package.json`。等同 Dependabot PR #31、#32，合併本 PR 後兩者會自動變成無差異。
+- `sprintf-js`（medium，GHSA-hp3w-g68c-fv3c，`<= 1.1.3`）：**沒有修補版本**，不處理。它只在
+  `babel-jest → babel-plugin-istanbul → @istanbuljs/load-nyc-config → js-yaml@3 → argparse@1 → sprintf-js@1.0.3`
+  這條 devDependency 鏈上，不進 production。重評條件：出現修補版，或該鏈換掉 js-yaml 3。
+- Dependabot PR #30（production-dependencies 群組，6 個執行期依賴含 `express` 5.2.1→5.3.0）與任何 alert 無關，
+  執行期依賴依既有流程保留人工審查，不在本次折入。
+
 ## 2026-08-23 — Agentic Vision：採用設計線索，暫不導入文章實作
 
 **來源**：[Evan Lin 的 LINE Bot Agentic Vision 實作紀錄](https://www.evanlin.com/agentic-vision/)、
