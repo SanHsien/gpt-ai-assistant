@@ -20,6 +20,28 @@ test('isPrivateIp handles IPv6 loopback / ULA / link-local / mapped', () => {
     .forEach((ip) => expect(isPrivateIp(ip)).toBe(false));
 });
 
+test('isPrivateIp blocks IPv6 forms that embed or alias a private IPv4', () => {
+  [
+    '::ffff:7f00:1', // new URL('http://[::ffff:127.0.0.1]/') 正規化後的十六進位形式
+    '::ffff:a00:1',
+    '::ffff:a9fe:a9fe',
+    '0:0:0:0:0:ffff:7f00:1',
+    '::7f00:1', // IPv4-compatible
+    '64:ff9b::7f00:1', // NAT64
+    '2002:7f00:1::', // 6to4
+    'fec0::1', // site-local
+    'ff02::1', // multicast
+    '2001:db8::1', // documentation
+  ].forEach((ip) => expect(isPrivateIp(ip)).toBe(true));
+  ['::ffff:808:808', '64:ff9b::808:808', '2002:808:808::', '2606:4700:4700::1111']
+    .forEach((ip) => expect(isPrivateIp(ip)).toBe(false));
+});
+
+test('assertSafeUrl rejects bracketed IPv4-mapped loopback after URL normalization', async () => {
+  await expect(assertSafeUrl('http://[::ffff:127.0.0.1]/x')).rejects.toThrow();
+  await expect(assertSafeUrl('http://[::ffff:169.254.169.254]/latest/meta-data')).rejects.toThrow();
+});
+
 test('isPrivateIp treats non-IP strings as unsafe', () => {
   expect(isPrivateIp('not-an-ip')).toBe(true);
   expect(isPrivateIp('')).toBe(true);

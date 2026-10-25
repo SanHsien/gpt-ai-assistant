@@ -32,16 +32,38 @@ const V4_BLOCKED = [
 
 const isPrivateIpv4 = (ip) => V4_BLOCKED.some((cidr) => inV4Range(ip, cidr));
 
+// 把 IPv6 字串展開成 8 個 16-bit 群組（支援 :: 縮寫與尾端點分十進位 IPv4）。
+const expandIpv6 = (ip) => {
+  let addr = ip.toLowerCase().split('%')[0];
+  const dotted = addr.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const [a, b, c, d] = dotted[2].split('.').map(Number);
+    addr = `${dotted[1]}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, tail] = addr.split('::');
+  const headGroups = head ? head.split(':') : [];
+  const tailGroups = tail ? tail.split(':') : [];
+  const fill = addr.includes('::') ? new Array(8 - headGroups.length - tailGroups.length).fill('0') : [];
+  return [...headGroups, ...fill, ...tailGroups].map((g) => parseInt(g, 16));
+};
+
+const embeddedV4 = (hi, lo) => `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+
+// URL 會把 [::ffff:127.0.0.1] 正規化成 ::ffff:7f00:1，所以必須以數值判斷而不是比對字串形式。
 const isPrivateIpv6 = (ip) => {
-  const addr = ip.toLowerCase();
-  if (addr === '::' || addr === '::1') return true; // unspecified / loopback
-  // IPv4-mapped（::ffff:a.b.c.d）→ 取出 IPv4 再判斷
-  const mapped = addr.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isPrivateIpv4(mapped[1]);
-  const head = addr.split(':')[0];
-  const group = head ? parseInt(head, 16) : 0;
-  if ((group & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
-  if ((group & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  const g = expandIpv6(ip);
+  if (g.slice(0, 7).every((x) => x === 0) && g[7] <= 1) return true; // :: 與 ::1
+  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return isPrivateIpv4(embeddedV4(g[6], g[7])); // IPv4-mapped
+  if (g.slice(0, 6).every((x) => x === 0)) return true; // IPv4-compatible（已淘汰）
+  if (g[0] === 0x64 && g[1] === 0xff9b) { // NAT64
+    return g[2] !== 0 || g.slice(3, 6).some((x) => x !== 0) || isPrivateIpv4(embeddedV4(g[6], g[7]));
+  }
+  if (g[0] === 0x2002) return isPrivateIpv4(embeddedV4(g[1], g[2])); // 6to4
+  if (g[0] === 0x2001 && (g[1] === 0 || g[1] === 0xdb8)) return true; // Teredo／文件用
+  if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  if ((g[0] & 0xffc0) === 0xfec0) return true; // fec0::/10 site-local（已淘汰）
+  if ((g[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
   return false;
 };
 
