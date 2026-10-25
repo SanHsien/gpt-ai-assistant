@@ -42,9 +42,11 @@ const generateCompletion = async ({
       durationMs: Date.now() - startedAt,
       status: 'done',
     });
-    const [choice] = data.choices;
+    const [choice] = data.choices ?? [];
+    if (!choice) throw new Error('OpenAI returned no choices');
+    // 模型拒答時 content 是 null、拒答文字在 refusal；直接 trim() 會讓使用者看到 TypeError。
     return new Completion({
-      text: choice.message.content.trim(),
+      text: String(choice.message?.content ?? choice.message?.refusal ?? '').trim(),
       finishReason: choice.finish_reason,
     });
   } catch (err) {
