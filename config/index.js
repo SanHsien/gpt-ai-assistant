@@ -14,6 +14,15 @@ const numberOr = (value, fallback) => (
     : Number(value)
 );
 
+// 逾時（毫秒）：個別變數 > APP_API_TIMEOUT > 預設值。只接受正數，空白／0／非數字視為未設定，
+// 避免外部服務不回應時請求一路卡到 Vercel function 的 60 秒上限。
+const timeoutMs = (...candidates) => {
+  const fallback = candidates.pop();
+  const found = candidates.map((value) => Number(String(value ?? '').trim() === '' ? NaN : value))
+    .find((value) => Number.isFinite(value) && value > 0);
+  return found ?? fallback;
+};
+
 const imageGenerationModel = env.OPENAI_IMAGE_GENERATION_MODEL || 'gpt-image-2';
 
 const config = Object.freeze({
@@ -112,7 +121,7 @@ const config = Object.freeze({
   WORKER_MAX_ATTEMPTS: Number(env.WORKER_MAX_ATTEMPTS) || 3,
   VERCEL_DEPLOY_HOOK_URL: env.VERCEL_DEPLOY_HOOK_URL || null,
   BLOB_READ_WRITE_TOKEN: env.BLOB_READ_WRITE_TOKEN || null,
-  OPENAI_TIMEOUT: env.OPENAI_TIMEOUT || env.APP_API_TIMEOUT,
+  OPENAI_TIMEOUT: timeoutMs(env.OPENAI_TIMEOUT, env.APP_API_TIMEOUT, 45000),
   OPENAI_API_KEY: env.OPENAI_API_KEY || null,
   OPENAI_BASE_URL: env.OPENAI_BASE_URL || 'https://api.openai.com',
   OPENAI_COMPLETION_MODEL: env.OPENAI_COMPLETION_MODEL || 'gpt-4o-mini',
@@ -133,10 +142,10 @@ const config = Object.freeze({
   OPENAI_VISION_MODEL: env.OPENAI_VISION_MODEL || 'gpt-4o',
   OPENAI_TRANSCRIPTION_MODEL: env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
   TRANSCRIPTION_MAX_BYTES: Number(env.TRANSCRIPTION_MAX_BYTES) || 25 * 1024 * 1024,
-  LINE_TIMEOUT: env.LINE_TIMEOUT || env.APP_API_TIMEOUT,
+  LINE_TIMEOUT: timeoutMs(env.LINE_TIMEOUT, env.APP_API_TIMEOUT, 10000),
   LINE_CHANNEL_ACCESS_TOKEN: env.LINE_CHANNEL_ACCESS_TOKEN || null,
   LINE_CHANNEL_SECRET: env.LINE_CHANNEL_SECRET || null,
-  SERPAPI_TIMEOUT: env.SERPAPI_TIMEOUT || env.APP_API_TIMEOUT,
+  SERPAPI_TIMEOUT: timeoutMs(env.SERPAPI_TIMEOUT, env.APP_API_TIMEOUT, 15000),
   SERPAPI_API_KEY: env.SERPAPI_API_KEY || null,
   SERPAPI_LOCATION: env.SERPAPI_LOCATION || 'tw',
 });

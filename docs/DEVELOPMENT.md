@@ -98,6 +98,9 @@ npm run dev           # nodemon api/index.js，本機起 Express
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob 讀寫 token；**選用**。在 Vercel 連結 Blob store 後，會注入 `BLOB_STORE_ID` 並由 `@vercel/blob` 走 OIDC 自動認證，**通常不需要**此 token。只有本機/非 Vercel 環境，或想用靜態 token 時才設定。 |
 | `OPENAI_IMAGE_GENERATION_SIZE` | 生圖尺寸，預設 `1024x1024`。 |
 | `OPENAI_IMAGE_GENERATION_QUALITY` | 生圖品質。GPT Image 預設 `low` 以控制成本；若明確改用 DALL-E 且未設定此值，程式會用相容的 `standard`。GPT Image 可設 `low` / `medium` / `high` / `auto`。 |
+| `OPENAI_TIMEOUT` | 對話／視覺／轉錄等 OpenAI 呼叫的逾時（毫秒），預設 `45000`；未設時退回 `APP_API_TIMEOUT`（若有設）。需低於 Vercel function 的 60 秒上限。 |
+| `LINE_TIMEOUT` | LINE Messaging API 呼叫逾時（毫秒），預設 `10000`；未設時退回 `APP_API_TIMEOUT`（若有設）。 |
+| `SERPAPI_TIMEOUT` | SerpAPI 搜尋逾時（毫秒），預設 `15000`；未設時退回 `APP_API_TIMEOUT`（若有設）。 |
 | `OPENAI_IMAGE_GENERATION_TIMEOUT` | 生圖 API timeout，預設 `55000` 毫秒；獨立於其他 OpenAI 呼叫，配合 Vercel Hobby 非 Fluid Compute 的 60 秒上限。 |
 | `OPENAI_VISION_MODEL` | 影像理解模型，預設 `gpt-4o`；低成本候選見 [`ROADMAP.md`](ROADMAP.md) |
 | `OPENAI_TRANSCRIPTION_MODEL` | 語音轉錄模型，預設 `gpt-4o-mini-transcribe`（原硬編 `whisper-1`，可設回 `whisper-1` 或升 `gpt-4o-transcribe`） |
