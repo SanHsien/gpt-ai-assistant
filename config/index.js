@@ -7,6 +7,13 @@ dotenv.config({
   quiet: true,
 });
 
+// 空字串／未設定才用預設值；0 是合法值（temperature 0 = 確定性輸出），不能被 `|| 預設` 吃掉。
+const numberOr = (value, fallback) => (
+  value === undefined || String(value).trim() === '' || !Number.isFinite(Number(value))
+    ? fallback
+    : Number(value)
+);
+
 const imageGenerationModel = env.OPENAI_IMAGE_GENERATION_MODEL || 'gpt-image-2';
 
 const config = Object.freeze({
@@ -109,10 +116,10 @@ const config = Object.freeze({
   OPENAI_API_KEY: env.OPENAI_API_KEY || null,
   OPENAI_BASE_URL: env.OPENAI_BASE_URL || 'https://api.openai.com',
   OPENAI_COMPLETION_MODEL: env.OPENAI_COMPLETION_MODEL || 'gpt-4o-mini',
-  OPENAI_COMPLETION_TEMPERATURE: Number(env.OPENAI_COMPLETION_TEMPERATURE) || 1,
+  OPENAI_COMPLETION_TEMPERATURE: numberOr(env.OPENAI_COMPLETION_TEMPERATURE, 1),
   OPENAI_COMPLETION_MAX_TOKENS: Number(env.OPENAI_COMPLETION_MAX_TOKENS) || 64,
   OPENAI_COMPLETION_FREQUENCY_PENALTY: Number(env.OPENAI_COMPLETION_FREQUENCY_PENALTY) || 0,
-  OPENAI_COMPLETION_PRESENCE_PENALTY: Number(env.OPENAI_COMPLETION_PRESENCE_PENALTY) || 0.6,
+  OPENAI_COMPLETION_PRESENCE_PENALTY: numberOr(env.OPENAI_COMPLETION_PRESENCE_PENALTY, 0.6),
   OPENAI_COMPLETION_STOP_SEQUENCES: env.OPENAI_COMPLETION_STOP_SEQUENCES ? String(env.OPENAI_COMPLETION_STOP_SEQUENCES).split(',') : [' assistant:', ' user:'],
   // run trace 成本估算：每 1K token 的美元單價（依你主要 completion 模型自行填）。
   // 兩者皆設才計 cost_usd，否則只記 token 數、cost 留空。價格會變動，非永久價目表。

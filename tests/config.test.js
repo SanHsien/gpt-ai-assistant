@@ -64,3 +64,26 @@ test.each([
 
   expect(config.TASK_LIST_LIMIT).toBe(expected);
 });
+
+test('lets 0 through for temperature and presence penalty, but blank keeps the defaults', async () => {
+  const keys = ['OPENAI_COMPLETION_TEMPERATURE', 'OPENAI_COMPLETION_PRESENCE_PENALTY'];
+  const saved = keys.map((k) => process.env[k]);
+  try {
+    keys.forEach((k) => { process.env[k] = '0'; });
+    jest.resetModules();
+    let { default: config } = await import('../config/index.js');
+    expect(config.OPENAI_COMPLETION_TEMPERATURE).toBe(0);
+    expect(config.OPENAI_COMPLETION_PRESENCE_PENALTY).toBe(0);
+
+    keys.forEach((k) => { process.env[k] = ''; });
+    jest.resetModules();
+    ({ default: config } = await import('../config/index.js'));
+    expect(config.OPENAI_COMPLETION_TEMPERATURE).toBe(1);
+    expect(config.OPENAI_COMPLETION_PRESENCE_PENALTY).toBe(0.6);
+  } finally {
+    keys.forEach((k, i) => {
+      if (saved[i] === undefined) delete process.env[k];
+      else process.env[k] = saved[i];
+    });
+  }
+});
