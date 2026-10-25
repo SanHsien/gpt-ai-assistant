@@ -45,8 +45,10 @@ const generateCompletion = async ({
     const [choice] = data.choices ?? [];
     if (!choice) throw new Error('OpenAI returned no choices');
     // 模型拒答時 content 是 null、拒答文字在 refusal；直接 trim() 會讓使用者看到 TypeError。
+    const raw = choice.message?.content ?? choice.message?.refusal;
+    if (raw == null) throw new Error('OpenAI returned an empty message');
     return new Completion({
-      text: String(choice.message?.content ?? choice.message?.refusal ?? '').trim(),
+      text: String(raw).trim(),
       finishReason: choice.finish_reason,
     });
   } catch (err) {

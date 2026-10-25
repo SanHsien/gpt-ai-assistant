@@ -44,13 +44,11 @@ test('a refusal (content: null) is returned as text instead of crashing on trim(
   expect(result.text).toBe('I cannot help with that.');
 });
 
-test('null content without a refusal yields empty text, not a TypeError', async () => {
+test('null content without a refusal raises a readable error, not a TypeError or silence', async () => {
   const generateCompletion = await load({
     choices: [{ message: { content: null }, finish_reason: 'length' }],
   });
-  const result = await generateCompletion({ prompt: { messages: [] } });
-  expect(result.text).toBe('');
-  expect(result.isFinishReasonStop).toBe(false);
+  await expect(generateCompletion({ prompt: { messages: [] } })).rejects.toThrow(/empty message/i);
 });
 
 test('an empty choices array raises a readable error', async () => {
