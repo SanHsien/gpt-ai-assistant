@@ -1,4 +1,4 @@
-import { expect, test } from '@jest/globals';
+import { describe, expect, test } from '@jest/globals';
 
 import {
   LINE_TEXT_LIMIT,
@@ -72,4 +72,29 @@ test('expandTextMessages never exceeds the five-message request limit', () => {
   }));
 
   expect(expandTextMessages(messages).length).toBe(5);
+});
+
+describe('surrogate pairs', () => {
+  const isWellFormed = (s) => !/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(s);
+
+  test('硬切不會把 emoji 的代理對拆成兩半', () => {
+    const text = `${'a'.repeat(LINE_TEXT_LIMIT - 1)}😀${'b'.repeat(100)}`;
+    const chunks = splitLineText(text);
+    expect(chunks.length).toBeGreaterThan(1);
+    chunks.forEach((chunk) => {
+      expect(chunk.length).toBeLessThanOrEqual(LINE_TEXT_LIMIT);
+      expect(isWellFormed(chunk)).toBe(true);
+    });
+    expect(chunks.join('')).toBe(text);
+  });
+
+  test('截斷標記前也不會留下孤立的高代理', () => {
+    const limit = 100;
+    const keep = limit - TRUNCATION_NOTICE.length;
+    const text = `${'a'.repeat(keep - 1)}😀${'b'.repeat(1000)}`;
+    const chunks = splitLineText(text, { limit, maxMessages: 1 });
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].length).toBeLessThanOrEqual(limit);
+    expect(isWellFormed(chunks[0])).toBe(true);
+  });
 });

@@ -17,6 +17,15 @@ export const TRUNCATION_NOTICE = '\n\n（訊息過長，已截斷）';
 
 const BREAKPOINTS = ['\n\n', '\n', '。', '！', '？', '. ', ' '];
 
+/** 切點若落在代理對（emoji 等）中間，往前退一格，避免留下孤立代理字元。 */
+const avoidSplittingSurrogate = (text, index) => {
+  const before = text.charCodeAt(index - 1);
+  const after = text.charCodeAt(index);
+  const splitsPair = index > 0 && before >= 0xd800 && before <= 0xdbff
+    && after >= 0xdc00 && after <= 0xdfff;
+  return splitsPair ? index - 1 : index;
+};
+
 /** 在 limit 內找一個盡量自然的切點；找不到就回 limit（硬切）。 */
 const findBreakpoint = (text, limit) => {
   const window = text.slice(0, limit);
@@ -25,7 +34,7 @@ const findBreakpoint = (text, limit) => {
     // 太靠前的切點會produce 一堆碎片，寧可硬切也不要把訊息切成豆腐塊。
     if (index > limit * 0.5) return index + marker.length;
   }
-  return limit;
+  return avoidSplittingSurrogate(text, limit);
 };
 
 /**
@@ -55,7 +64,7 @@ export const splitLineText = (text, {
 
   // 塞不下了：最後一則保留截斷標記的空間，並明說被截斷。
   const keep = limit - TRUNCATION_NOTICE.length;
-  chunks.push(rest.slice(0, keep).trimEnd() + TRUNCATION_NOTICE);
+  chunks.push(rest.slice(0, avoidSplittingSurrogate(rest, keep)).trimEnd() + TRUNCATION_NOTICE);
   return chunks;
 };
 
