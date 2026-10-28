@@ -2,6 +2,24 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-10-28 — Preview 改連 staging 的 Transaction pooler，runtime preflight 恢復 OK
+
+**結果**：Preview 部署（暫用分支 `staging/verify-20261028`，驗完已刪）的 `/` 回
+`{"status":"OK","currentVersion":"6.1.0","latestVersion":"6.1.0"}`，Runtime Logs 沒有 preflight 錯誤。
+`OK` 代表 `assertRuntimeConfig` 與 `schema_migrations` 的最新 migration 檢查都通過。連的是 staging 專案
+（`egjyymfxorikrlzchxpb`），Production 資料庫沒有動。
+
+**一路排掉的三個原因**（之後 Preview 又回 `NOT_READY` 時照這個順序查）：
+
+1. **Supabase 免費方案閒置後會暫停**：連線直接失敗。到 dashboard 按 Resume（免費）。
+2. **直連主機 `db.<ref>.supabase.co` 只有 IPv6**，Vercel 解析不到（日誌出現 `ENOTFOUND`）。Preview 的
+   `DATABASE_URL` 要用 Connect → Transaction pooler 的字串（`aws-0-ap-northeast-1.pooler.supabase.com:6543`，
+   使用者名稱是 `postgres.<ref>`）。
+3. **密碼錯誤**（`Runtime preflight failed: 28P01`）：重設資料庫密碼，用 Supabase 產生的英數字密碼，
+   不必另外做 URL 編碼。
+
+**注意**：改了 Vercel 環境變數之後，要重新部署才會生效。
+
 ## 2026-10-24 — 依賴安全警示：lockfile 升級 7 個傳遞依賴、zod 加 override，sprintf-js 無修補版
 
 **範圍**：Dependabot 4 筆 open alert，manifest 皆為 `package-lock.json`。
