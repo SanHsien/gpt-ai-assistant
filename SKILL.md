@@ -36,7 +36,8 @@ description: 維護 SanHsien/gpt-ai-assistant：自架 LINE × OpenAI 個人助�
 - 使用者安裝／部署／設定／操作／疑難排解：`SanHsien/gpt-ai-assistant-docs`
 - runtime／架構／migration／contract／決策／release evidence：本 app repo
 - 最新專案覆核：[`REVIEW.md`](REVIEW.md)
-- 產品／Google contract：[`docs/ROADMAP.md`](docs/ROADMAP.md)
+- 產品／Google contract：[`docs/PRODUCT.md`](docs/PRODUCT.md)
+- 後續工作：[`docs/ROADMAP.md`](docs/ROADMAP.md)
 - 開發與 Production 驗證：[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - 決策：[`docs/DECISIONS.md`](docs/DECISIONS.md)
 - 來源與授權：[`NOTICE.md`](NOTICE.md)

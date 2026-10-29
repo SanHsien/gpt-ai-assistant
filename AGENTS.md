@@ -75,7 +75,8 @@
 
 - `README.md` / `README.en.md`：產品入口、能力與必要安全／部署摘要
 - `docs/DEVELOPMENT.md`：runtime 架構、開發、部署實作與驗證
-- `docs/ROADMAP.md`：產品範圍、Google contract、未來與明確不做
+- `docs/PRODUCT.md`：產品範圍、Google contract、模型基線、授權策略（目前的規格）
+- `docs/ROADMAP.md`：後續工作與明確不做（單一真相源）
 - `docs/DECISIONS.md`：耐久性技術／產品決策
 - `REVIEW.md`：最新 evidence-based 覆核與未驗證項
 - `CHANGELOG.md`：正式版本歷史

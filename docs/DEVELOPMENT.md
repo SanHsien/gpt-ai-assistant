@@ -1,6 +1,6 @@
 # Development
 
-維護者與 AI 接手用的單一開發文件：架構、本機指令、環境變數、部署。使用者導向說明在根目錄 [`README.md`](../README.md)；決策紀錄在 [`DECISIONS.md`](DECISIONS.md)；Phase 狀態與範疇在 [`ROADMAP.md`](ROADMAP.md)。
+維護者與 AI 接手用的單一開發文件：架構、本機指令、環境變數、部署。使用者導向說明在根目錄 [`README.md`](../README.md)；決策紀錄在 [`DECISIONS.md`](DECISIONS.md)；產品範疇與 Phase 對照在 [`PRODUCT.md`](PRODUCT.md)；後續工作在 [`ROADMAP.md`](ROADMAP.md)。
 
 ## 架構
 
@@ -93,7 +93,7 @@ npm run dev           # nodemon api/index.js，本機起 Express
 | 變數 | 說明 |
 |------|------|
 | `OPENAI_API_KEY` | OpenAI 金鑰（必填） |
-| `OPENAI_COMPLETION_MODEL` | 對話模型，預設 `gpt-4o-mini`（原 `gpt-3.5-turbo`）；新模型評估見 [`ROADMAP.md`](ROADMAP.md) |
+| `OPENAI_COMPLETION_MODEL` | 對話模型，預設 `gpt-4o-mini`（原 `gpt-3.5-turbo`）；新模型評估見 [`PRODUCT.md`](PRODUCT.md)「API 與模型基線」 |
 | `OPENAI_IMAGE_GENERATION_MODEL` | 生圖模型，預設 `gpt-image-2`。GPT Image 回傳 base64，程式會自動上傳 private Vercel Blob，取得 LINE 可讀的限時 signed URL。可明確設回 deprecated 的 `dall-e-3` 作短期 fallback。 |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob 讀寫 token；**選用**。在 Vercel 連結 Blob store 後，會注入 `BLOB_STORE_ID` 並由 `@vercel/blob` 走 OIDC 自動認證，**通常不需要**此 token。只有本機/非 Vercel 環境，或想用靜態 token 時才設定。 |
 | `OPENAI_IMAGE_GENERATION_SIZE` | 生圖尺寸，預設 `1024x1024`。 |
@@ -102,7 +102,7 @@ npm run dev           # nodemon api/index.js，本機起 Express
 | `LINE_TIMEOUT` | LINE Messaging API 呼叫逾時（毫秒），預設 `10000`；未設時退回 `APP_API_TIMEOUT`（若有設）。 |
 | `SERPAPI_TIMEOUT` | SerpAPI 搜尋逾時（毫秒），預設 `15000`；未設時退回 `APP_API_TIMEOUT`（若有設）。 |
 | `OPENAI_IMAGE_GENERATION_TIMEOUT` | 生圖 API timeout，預設 `55000` 毫秒；獨立於其他 OpenAI 呼叫，配合 Vercel Hobby 非 Fluid Compute 的 60 秒上限。 |
-| `OPENAI_VISION_MODEL` | 影像理解模型，預設 `gpt-4o`；低成本候選見 [`ROADMAP.md`](ROADMAP.md) |
+| `OPENAI_VISION_MODEL` | 影像理解模型，預設 `gpt-4o`；低成本候選見 [`PRODUCT.md`](PRODUCT.md)「API 與模型基線」 |
 | `OPENAI_TRANSCRIPTION_MODEL` | 語音轉錄模型，預設 `gpt-4o-mini-transcribe`（原硬編 `whisper-1`，可設回 `whisper-1` 或升 `gpt-4o-transcribe`） |
 | `TRANSCRIPTION_MAX_BYTES` | LINE 語音／桌面音訊檔下載與轉錄上限，預設 25 MiB；檔案訊息先檢查 metadata，下載後再檢查實際 buffer。 |
 | `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_CHANNEL_SECRET` | LINE channel 憑證（必填） |
@@ -272,7 +272,7 @@ worker 因此可以把付費工作與送達分開處理（`services/worker.js`�
 
 建立行程可用明確指令 `記行程`／`新增行程`／`安排行程`，也支援以日期開頭、帶有事項且不是問句的自然輸入，例如 `7/20 借保貸交信用卡`、`明天下午三點看診`、`下星期五下午三點看診`。為避免誤攔一般問答，日期問句與算式不會進行程 handler。
 
-**語音建行程**（`ENABLE_TRANSCRIPTION`）：LINE 語音訊息由 `app/context.js` 的 `transcribeAudio` 經 Whisper／`gpt-4o-mini-transcribe` 轉文字後即成 `trimmedText`，schedule handler 沒有 `isText` 閘門，因此語音講「記行程 …」或日期開頭語句會走與文字**完全相同**的 parse→確認→CRUD→同步→提醒流程。LINE Windows／Mac 子裝置沒有原生語音錄製，rc.9 起可改附加 mp3／mp4／mpeg／mpga／m4a／wav／webm。真實 Windows 驗收顯示 LINE 可能把這類附件轉成 `audio` webhook；rc.10 起 `audio` 依 [LINE Content API](https://developers.line.biz/en/reference/messaging-api/#get-content) 的 `Content-Type`（不足時用 magic bytes）選正確副檔名，`file` 則沿用白名單原始檔名。rc.11 再只針對語音句首把常見「寄／紀／計／既行程」及「請幫我記行程」正規化為 `記行程` 後路由，原始轉錄仍保留在「🎤 我聽到：…」供使用者核對。兩種 webhook 都經大小檢查並走同一流程。音訊 buffer 只在轉錄期間存在記憶體、不落地。**圖片建行程（票券／海報擷取）決定不做**（見 [`ROADMAP.md`](ROADMAP.md) Phase 4）；圖片維持看圖聊天。
+**語音建行程**（`ENABLE_TRANSCRIPTION`）：LINE 語音訊息由 `app/context.js` 的 `transcribeAudio` 經 Whisper／`gpt-4o-mini-transcribe` 轉文字後即成 `trimmedText`，schedule handler 沒有 `isText` 閘門，因此語音講「記行程 …」或日期開頭語句會走與文字**完全相同**的 parse→確認→CRUD→同步→提醒流程。LINE Windows／Mac 子裝置沒有原生語音錄製，rc.9 起可改附加 mp3／mp4／mpeg／mpga／m4a／wav／webm。真實 Windows 驗收顯示 LINE 可能把這類附件轉成 `audio` webhook；rc.10 起 `audio` 依 [LINE Content API](https://developers.line.biz/en/reference/messaging-api/#get-content) 的 `Content-Type`（不足時用 magic bytes）選正確副檔名，`file` 則沿用白名單原始檔名。rc.11 再只針對語音句首把常見「寄／紀／計／既行程」及「請幫我記行程」正規化為 `記行程` 後路由，原始轉錄仍保留在「🎤 我聽到：…」供使用者核對。兩種 webhook 都經大小檢查並走同一流程。音訊 buffer 只在轉錄期間存在記憶體、不落地。**圖片建行程（票券／海報擷取）決定不做**（見 [`PRODUCT.md`](PRODUCT.md)「架構邊界」的 Phase 4）；圖片維持看圖聊天。
 
 星期規則由程式先算成日期再交給 OpenAI：裸 `星期五`／`週五` 取下一個尚未跨過的星期五；`本週`／`這週`／`這個星期` 固定本週，`下週`／`下個星期` 固定下一週。若明確寫 `這週二` 而該日已過，仍依字面得到本週二，不會擅自改成下週。
 
@@ -374,7 +374,7 @@ Google 同步失敗不會刪除本機 event。使用 `同步失敗行程` 最多
 
 ### Phase 0 資料庫基礎（Supabase Postgres，已上線並接線）
 
-依 [`ROADMAP.md`](ROADMAP.md) Phase 0，schema 最新為 `0020`。Production 使用 transaction pooler、CA 與資料加密 key；queue、行程、提醒、Google Calendar、任務、Google Tasks（outbound＋inbound）、Calendar inbound 與天氣功能旗標均已接線。`0019` 將 inbound 改為 `singleEvents=false` 系列模式；`0020` 將新帳號 cursor 預設為 v3，既有 v2 帳號在新 runtime 首輪先清 cursor，下一輪 baseline 匯入 primary calendar 支援範圍內的既存行程並建立提醒。提醒 URL 與 Bearer secret 存於 Supabase Vault，`gpt-ai-assistant-reminders` Cron 每分鐘執行；每次新增 migration 或改旗標後仍須以 `npm run db:migrate`、`npm run db:preflight`、Redeploy 與真實 worker trace 重驗。
+依 Phase 0（編號對照見 [`PRODUCT.md`](PRODUCT.md)「架構邊界」），schema 最新為 `0020`。Production 使用 transaction pooler、CA 與資料加密 key；queue、行程、提醒、Google Calendar、任務、Google Tasks（outbound＋inbound）、Calendar inbound 與天氣功能旗標均已接線。`0019` 將 inbound 改為 `singleEvents=false` 系列模式；`0020` 將新帳號 cursor 預設為 v3，既有 v2 帳號在新 runtime 首輪先清 cursor，下一輪 baseline 匯入 primary calendar 支援範圍內的既存行程並建立提醒。提醒 URL 與 Bearer secret 存於 Supabase Vault，`gpt-ai-assistant-reminders` Cron 每分鐘執行；每次新增 migration 或改旗標後仍須以 `npm run db:migrate`、`npm run db:preflight`、Redeploy 與真實 worker trace 重驗。
 
 - `services/database.js`：`pg` Pool、`withTransaction`、Supabase CA hostname verification。Supabase URL 有 `DATABASE_URL` 但缺 `DATABASE_SSL_CA` 時 fail closed。
 - `db/migrations/*.sql`：涵蓋 durable queue、行程／確認、Calendar、提醒偏好、任務、天氣、inbound sync 與 bot source；每個 migration 自帶 transaction，`db/rollbacks/` 有 `0001`–`0020` 對應回滾。
@@ -564,5 +564,5 @@ CI：`.github/workflows/ci.yml` 在每次 push / PR 對 `main` 跑 `npm ci` → 
 `git log HEAD..upstream/main`。有未審 commit 就建立／reopen 固定的提醒 issue，全部審完
 則自動關閉。逐筆決策寫 `DECISIONS.md`，驗證後才推進 baseline。本機執行：`npm run check:upstream`。
 
-- 本 repo 源自 [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant)（MIT），來源脈絡包含上游 [`d84c806`](https://github.com/memochou1993/gpt-ai-assistant/commit/d84c806b8368ded9d790067235827cdac32a23ab)，公開 Git 歷史於 2026-07-18 以目前快照初始化，現為獨立維護 repository。fermi 不直接合併原始碼；上游活躍度、回貢、架構與授權評估見 [`ROADMAP.md`](ROADMAP.md)。
-- 本專案維持 OpenAI + LINE、自架、自備 API key，並已核准依 [`ROADMAP.md`](ROADMAP.md) 演進為個人助理。OpenAI / ChatGPT 訂閱 OAuth 仍不適合取代 API key。未來 Claude 版仍屬候選方向；硬性禁令見 [`../AGENTS.md`](../AGENTS.md)。
+- 本 repo 源自 [`memochou1993/gpt-ai-assistant`](https://github.com/memochou1993/gpt-ai-assistant)（MIT），來源脈絡包含上游 [`d84c806`](https://github.com/memochou1993/gpt-ai-assistant/commit/d84c806b8368ded9d790067235827cdac32a23ab)，公開 Git 歷史於 2026-07-18 以目前快照初始化，現為獨立維護 repository。fermi 不直接合併原始碼；上游活躍度、架構與授權評估見 [`PRODUCT.md`](PRODUCT.md)，回貢見 [`ROADMAP.md`](ROADMAP.md)「刻意不做」。
+- 本專案維持 OpenAI + LINE、自架、自備 API key，並已核准演進為個人助理（範圍見 [`PRODUCT.md`](PRODUCT.md)，後續工作見 [`ROADMAP.md`](ROADMAP.md)）。OpenAI / ChatGPT 訂閱 OAuth 仍不適合取代 API key。未來 Claude 版仍屬候選方向；硬性禁令見 [`../AGENTS.md`](../AGENTS.md)。

@@ -75,7 +75,7 @@ LINE 語音訊息或支援的音訊附件會先轉錄，再走與文字相同的
 - 非 primary calendar 匯入
 - Google Tasks due-date inbound 回收
 
-這些限制是明確產品邊界，不代表一般 LINE 行程／任務功能失效。詳細 contract 見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+這些限制是明確產品邊界，不代表一般 LINE 行程／任務功能失效。詳細 contract 見 [`docs/PRODUCT.md`](docs/PRODUCT.md)。
 
 ## 快速開始
 
@@ -168,7 +168,8 @@ LINE delivery checkpoint
 ### 本 repo 維護文件
 
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)：runtime 架構、開發、部署實作與驗證
-- [`docs/ROADMAP.md`](docs/ROADMAP.md)：產品邊界、資料／Google contract 與後續方向
+- [`docs/PRODUCT.md`](docs/PRODUCT.md)：產品邊界、資料／Google contract、模型基線與授權
+- [`docs/ROADMAP.md`](docs/ROADMAP.md)：後續工作與明確不做
 - [`docs/DECISIONS.md`](docs/DECISIONS.md)：技術與產品決策
 - [`REVIEW.md`](REVIEW.md)：最新 evidence-based 專案覆核與未驗證項
 - [`CHANGELOG.md`](CHANGELOG.md)：版本歷史
@@ -183,7 +184,7 @@ GPT AI Assistant 維持以下核心：
 - **自架與可驗證的 durable runtime** 優先於增加更多聊天花樣。
 - Google Calendar／Tasks 是個人助理整合，不擴張成多人協作或企業工作流平台。
 
-完整已完成／不做項目與未來規劃見 [`docs/ROADMAP.md`](docs/ROADMAP.md)，不再在 README 重複維護一份平行 roadmap。
+後續工作與明確不做見 [`docs/ROADMAP.md`](docs/ROADMAP.md)，已完成項目見 [`CHANGELOG.md`](CHANGELOG.md)，README 不另維護一份平行 roadmap。
 
 ## 專案來源與授權
 

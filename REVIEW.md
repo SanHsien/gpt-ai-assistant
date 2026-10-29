@@ -69,4 +69,4 @@ Google Calendar／Tasks 的 scopes、能力矩陣與 inbound 衝突政策已收�
 
 所有 Release Gate 均已通過；`6.1.0` 已完成 Google Calendar／Tasks reminder 的 Production 閉環與相容性探針。
 
-完整操作順序與回滾見 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)，驗收範圍與不支援項目見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+完整操作順序與回滾見 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)，驗收範圍與不支援項目見 [`docs/PRODUCT.md`](docs/PRODUCT.md)。

@@ -2,6 +2,12 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-10-29 — 產品邊界從 ROADMAP 移到 PRODUCT.md
+
+- **決定**：`docs/ROADMAP.md` 只放後續工作（做完一列就刪），產品目前的邊界與規格（支援範圍、架構邊界、品質門檻、版本政策、API 與模型基線、fermi 取捨、上游活躍度、參考專案、授權策略）移到 `docs/PRODUCT.md`。
+- **理由**：兩者壽命不同——待辦做完就刪，規格要長期被 README、AGENTS、DEVELOPMENT、SKILL、REVIEW、NOTICE 引用；放在同一檔，路線圖不再是單一真相源的待辦清單，規格也會被誤讀成待辦。內容逐字搬移，未改任何規格。
+- **影響**：上述文件的連結改指 `PRODUCT.md`；本檔與 CHANGELOG 的舊條目是歷史紀錄，連結維持原樣，`ROADMAP.md` 末尾有指向 `PRODUCT.md` 的一行。
+
 ## 2026-10-28 — Preview 改連 staging 的 Transaction pooler，runtime preflight 恢復 OK
 
 **結果**：Preview 部署（暫用分支 `staging/verify-20261028`，驗完已刪）的 `/` 回

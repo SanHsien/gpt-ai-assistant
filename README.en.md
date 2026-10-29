@@ -75,7 +75,7 @@ Calendar currently supports outbound management of bot-managed events plus safe-
 - non-primary calendar imports
 - Google Tasks due-date reclamation
 
-These are explicit product boundaries, not failures of the normal LINE event/task workflows. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the detailed contract.
+These are explicit product boundaries, not failures of the normal LINE event/task workflows. See [`docs/PRODUCT.md`](docs/PRODUCT.md) for the detailed contract.
 
 ## Quick start
 
@@ -168,7 +168,8 @@ Main code areas:
 ### Maintainer documentation in this repo
 
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md): runtime architecture, development, deployment implementation, and validation
-- [`docs/ROADMAP.md`](docs/ROADMAP.md): product boundaries, data/Google contracts, and future direction
+- [`docs/PRODUCT.md`](docs/PRODUCT.md): product boundaries, data/Google contracts, model baseline, and licensing
+- [`docs/ROADMAP.md`](docs/ROADMAP.md): next work and what is deliberately not done
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): technical and product decisions
 - [`REVIEW.md`](REVIEW.md): latest evidence-based project review and unverified items
 - [`CHANGELOG.md`](CHANGELOG.md): version history
@@ -183,7 +184,7 @@ GPT AI Assistant keeps these core constraints:
 - **Self-hosting and a verifiable durable runtime** take priority over adding more chat gimmicks.
 - Google Calendar / Tasks remain personal-assistant integrations rather than expanding into multi-user collaboration or enterprise workflow software.
 
-Completed work, excluded directions, and future planning live in [`docs/ROADMAP.md`](docs/ROADMAP.md); the README intentionally does not maintain a second parallel roadmap.
+Next work and excluded directions live in [`docs/ROADMAP.md`](docs/ROADMAP.md) and completed work in [`CHANGELOG.md`](CHANGELOG.md); the README intentionally does not maintain a second parallel roadmap.
 
 ## Origin and license
 

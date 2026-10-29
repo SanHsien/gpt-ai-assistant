@@ -14,7 +14,7 @@ Copyright 2026 SanHsien
 
 本 repo 保留原始 MIT license 於 [`LICENSE`](LICENSE)。衍生版本的修改、文件與專案專屬變更由 SanHsien 維護，另有註明者除外。
 
-目前本 repo 維持 MIT，不轉為 FSL-1.1-MIT。MIT / FSL-1.1-MIT 的差異、未來轉標條件，以及 fermi 合併邊界見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+目前本 repo 維持 MIT，不轉為 FSL-1.1-MIT。MIT / FSL-1.1-MIT 的差異、未來轉標條件，以及 fermi 合併邊界見 [`docs/PRODUCT.md`](docs/PRODUCT.md)。
 
 ## License Notes
 
@@ -30,11 +30,11 @@ MIT License 允許使用、複製、修改、合併、發布、散布、再授�
 
 `gpt-ai-assistant` 是一個 LINE 聊天機器人：透過 LINE Messaging API 接收訊息，串接 OpenAI API 產生回覆、生圖與影像理解，並可經 SerpAPI 做網路搜尋。以 serverless（Vercel 優先）方式部署，使用者用自己的 API key 與 LINE channel 自架。
 
-本專案目前定位：**維持 OpenAI + LINE、自架、自備金鑰，並分階段演進為個人助理**。行程、任務、提醒、日曆、天氣、搜尋與分享依 [`docs/ROADMAP.md`](docs/ROADMAP.md) 推進；Toki（前身 Dola）僅作公開產品行為參考，未使用其程式碼、品牌、文案或素材。fermi 僅作可靠性與持久化架構參考，不合併其 FSL 原始碼。未來可能的 Claude 版助理仍待定。OpenAI / ChatGPT 訂閱 OAuth 已評估為不適合此 repo 取代 API key。
+本專案目前定位：**維持 OpenAI + LINE、自架、自備金鑰，並分階段演進為個人助理**。支援範圍見 [`docs/PRODUCT.md`](docs/PRODUCT.md)，後續工作見 [`docs/ROADMAP.md`](docs/ROADMAP.md)；Toki（前身 Dola）僅作公開產品行為參考，未使用其程式碼、品牌、文案或素材。fermi 僅作可靠性與持久化架構參考，不合併其 FSL 原始碼。未來可能的 Claude 版助理仍待定。OpenAI / ChatGPT 訂閱 OAuth 已評估為不適合此 repo 取代 API key。
 
 ## Upstream 後續專案
 
-原作者於 2026-06-08 的上游 commit [`d84c806`](https://github.com/memochou1993/gpt-ai-assistant/commit/d84c806b8368ded9d790067235827cdac32a23ab) 將過時的 News 區塊改為接班專案 [`memochou1993/fermi`](https://github.com/memochou1993/fermi) 的指引；本專案的來源脈絡包含該上游版本，公開 Git 歷史則於 2026-07-18 以目前快照重新初始化。fermi 是基於 Supabase + OpenRouter 的可自架 LINE 助理。本專案不依賴 fermi，也不直接合併其原始碼；僅把 webhook queue、持久化、run trace、reply/push fallback、capability 等架構方向作為參考，詳見 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+原作者於 2026-06-08 的上游 commit [`d84c806`](https://github.com/memochou1993/gpt-ai-assistant/commit/d84c806b8368ded9d790067235827cdac32a23ab) 將過時的 News 區塊改為接班專案 [`memochou1993/fermi`](https://github.com/memochou1993/fermi) 的指引；本專案的來源脈絡包含該上游版本，公開 Git 歷史則於 2026-07-18 以目前快照重新初始化。fermi 是基於 Supabase + OpenRouter 的可自架 LINE 助理。本專案不依賴 fermi，也不直接合併其原始碼；僅把 webhook queue、持久化、run trace、reply/push fallback、capability 等架構方向作為參考，詳見 [`docs/PRODUCT.md`](docs/PRODUCT.md)「fermi 架構取捨」。
 
 ## Credits and Acknowledgments
 
