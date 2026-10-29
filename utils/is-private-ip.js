@@ -52,6 +52,8 @@ const embeddedV4 = (hi, lo) => `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`
 // URL 會把 [::ffff:127.0.0.1] 正規化成 ::ffff:7f00:1，所以必須以數值判斷而不是比對字串形式。
 const isPrivateIpv6 = (ip) => {
   const g = expandIpv6(ip);
+  if (g.slice(0, 4).every((x) => x === 0) && g[4] === 0xffff && g[5] === 0) return true; // ::ffff:0:0:0/96 IPv4-translated
+  if (g[0] === 0x100 && g.slice(1, 4).every((x) => x === 0)) return true; // 100::/64 discard-only
   if (g.slice(0, 7).every((x) => x === 0) && g[7] <= 1) return true; // :: 與 ::1
   if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return isPrivateIpv4(embeddedV4(g[6], g[7])); // IPv4-mapped
   if (g.slice(0, 6).every((x) => x === 0)) return true; // IPv4-compatible（已淘汰）

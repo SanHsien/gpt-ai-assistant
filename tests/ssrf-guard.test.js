@@ -37,6 +37,39 @@ test('isPrivateIp blocks IPv6 forms that embed or alias a private IPv4', () => {
     .forEach((ip) => expect(isPrivateIp(ip)).toBe(false));
 });
 
+test.each([
+  '::ffff:0:127.0.0.1',
+  '::ffff:0:169.254.169.254',
+  '::ffff:0:8.8.8.8',
+  '::ffff:0:0:0',
+  '::ffff:0:ffff:ffff',
+  '0:0:0:0:ffff:0:7f00:1',
+  '100::',
+  '100::1',
+  '100::ffff:ffff:ffff:ffff',
+  '0100:0000:0000:0000:1234:5678:9abc:def0',
+])('isPrivateIp blocks translated / discard-only address %s', (ip) => {
+  expect(isPrivateIp(ip)).toBe(true);
+});
+
+test.each([
+  '::fffe:0:808:808',
+  '::ffff:1:808:808',
+  'ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+  '100:0:0:1::',
+])('isPrivateIp allows public addresses outside translated / discard-only ranges: %s', (ip) => {
+  expect(isPrivateIp(ip)).toBe(false);
+});
+
+test.each([
+  'http://[::ffff:0:127.0.0.1]/',
+  'http://[::ffff:0:8.8.8.8]/',
+  'http://[100::]/',
+  'http://[100::ffff:ffff:ffff:ffff]/',
+])('assertSafeUrl rejects translated / discard-only URL %s', async (url) => {
+  await expect(assertSafeUrl(url)).rejects.toThrow('URL host resolves to a blocked address');
+});
+
 test('assertSafeUrl rejects bracketed IPv4-mapped loopback after URL normalization', async () => {
   await expect(assertSafeUrl('http://[::ffff:127.0.0.1]/x')).rejects.toThrow();
   await expect(assertSafeUrl('http://[::ffff:169.254.169.254]/latest/meta-data')).rejects.toThrow();

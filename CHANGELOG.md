@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 補強網址摘要的 SSRF 防護：拒絕 IPv4-translated（`::ffff:0:0:0/96`）與 discard-only（`100::/64`）位址，涵蓋 IPv6 縮寫、完整與 URL 正規化形式；新增保留段邊界及相鄰位址回歸測試。
+
 - 依賴新鮮度歸零：宣告範圍內的 `axios` 1.20.0、`express-rate-limit` 8.7.0、`opencc-js` 1.4.2；exact pin 的 `jest`／`babel-jest`／`@jest/globals` 30.4→30.5.0（三者必須同版）與 `eslint` 10.9.0→10.9.1。升級後 `npx eslint .` 全綠、`npm run test:module-load` 通過、609 個 jest 測試全數通過。Babel 7→8 的暫緩隨這次 Jest 升版一併複驗：`@jest/transform@30.5.0` 仍直接依賴 `@babel/core ^7.27.4`，卡點未變，理由已更新版本號。
 
 - 依賴新鮮度歸零：`@vercel/functions` 3.9.3→3.9.5（宣告範圍內）、`eslint` 10.8.1→10.9.0（exact pin，升級後 `npx eslint .` 全綠、597 個 jest 測試通過）。Babel 7→8 的暫緩經複驗仍成立並補上具體證據：卡住的不是 `babel-jest`（peer 已放行 `^8.0.0-0`），而是 `@jest/transform@30.4.1` 直接依賴 `@babel/core ^7.27.4`；理由已寫進 `.github/dependency-deferrals.json`，下次複驗不必重挖。
