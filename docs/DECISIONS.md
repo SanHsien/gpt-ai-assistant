@@ -2,6 +2,22 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-10-29 — LINE／OpenAI 金鑰暫不從 Preview 隔離，等 Preview 做功能實測時再做
+
+**決定**：維護者同意先不把 LINE channel 憑證與 OpenAI 金鑰從 Vercel Preview 環境隔離。
+
+**理由**（現階段風險低）：
+
+- Preview 網址沒有登記成 LINE webhook，LINE 不會把使用者訊息送過去。
+- 外部直接打 webhook 要先通過 LINE 簽章驗證，沒有 channel secret 過不了。
+- Preview 只在維護者自己推分支時建置。
+
+以上依 2026-10-28 staging 驗證時的設定推論，這次沒有重開 Vercel 環境變數頁確認。
+
+**觸發條件**：開始在 Preview 做會真的回 LINE 訊息、會用 OpenAI 額度的功能實測（例如 ROADMAP 的 feature flag 實測）。
+
+**屆時做法**：另開一個 LINE 測試頻道，配一把設了花費上限的 OpenAI 測試金鑰，只設在 Preview 環境；Production 金鑰改成只套用 Production。改完重新部署才會生效。需要維護者收 email 驗證碼，一次做完。
+
 ## 2026-10-29 — 產品邊界從 ROADMAP 移到 PRODUCT.md
 
 - **決定**：`docs/ROADMAP.md` 只放後續工作（做完一列就刪），產品目前的邊界與規格（支援範圍、架構邊界、品質門檻、版本政策、API 與模型基線、fermi 取捨、上游活躍度、參考專案、授權策略）移到 `docs/PRODUCT.md`。

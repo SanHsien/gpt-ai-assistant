@@ -24,6 +24,7 @@
 | 審上游新變更 | 「上游更新檢查」workflow 開出或 reopen 提醒 issue（failure＝有未審 commit／PR／issue，不是工具壞） | 逐筆寫進 `DECISIONS.md`（引用或不引用＋理由），推進 `tools/upstream-baseline.json` 的 `reviewedThrough`／`reviewedPrThrough`／`reviewedIssueThrough`；提醒 issue 自動關閉 | Claude Sonnet | `tools/upstream-baseline.json`（審到 `d84c806`、PR #374、issue #376）；`.github/workflows/upstream-check.yml` |
 | 擴大 Google 同步範圍：全天 inbound、週期 series／exception inbound、非 primary 匯入、Tasks `due` 回收 | 個人使用反覆遇到「Google 端改了全天或週期行程，LINE 提醒沒跟上」 | 先在 `DECISIONS.md` 寫 provider contract（exclusive end date、DST、RRULE 例外模型）；每一型有 mock 測試＋真實 Google 單筆閉環 | Claude Opus | [`PRODUCT.md`](PRODUCT.md)「支援範圍」；`REVIEW.md` 結論段（明確不支援） |
 | 看圖進階路徑（標註、局部放大、計數） | 個人使用反覆出現「小字看不清、要在原圖標註、要計數」，且 OpenAI prototype 的品質提升能覆蓋成本與延遲 | 照 [`DECISIONS.md`](DECISIONS.md) 2026-08-23 列的前置設計（feature flag、owner-scoped durable state、cost trace、兩段 checkpoint）逐項有測試 | Claude Opus | [`DECISIONS.md`](DECISIONS.md) 2026-08-23 Agentic Vision |
+| LINE／OpenAI 金鑰從 Preview 隔離 | 開始在 Preview 做會回 LINE 訊息或用 OpenAI 額度的功能實測 | Vercel 的 Preview 只有 LINE 測試頻道憑證與設了花費上限的 OpenAI 測試金鑰，Production 金鑰只套用 Production；重新部署後 Preview 的 `/` 仍回 `status: OK` | 維護者（要收 email 驗證碼） | [`DECISIONS.md`](DECISIONS.md) 2026-10-29 金鑰隔離 |
 
 ## 刻意不做
 | 不做什麼 | 理由 | 什麼情況下重新考慮 |
