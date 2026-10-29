@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 - 補強網址摘要的 SSRF 防護：拒絕 IPv4-translated（`::ffff:0:0:0/96`）與 discard-only（`100::/64`）位址，涵蓋 IPv6 縮寫、完整與 URL 正規化形式；新增保留段邊界及相鄰位址回歸測試。
+- 外部 API 補上預設逾時機制（`72a54fe`）：`config/index.js` 為 `OPENAI_TIMEOUT`、`LINE_TIMEOUT` 與 `SERPAPI_TIMEOUT` 增加預設逾時，外部服務未回應時請求不再卡到 Vercel function 60 秒上限。逾時優先序為「個別變數 > `APP_API_TIMEOUT` > 預設（OpenAI 45s、LINE 10s、SerpAPI 15s）」；僅接受正數，空白、0 或非數字視為未設定。部署者需注意行為變化：若未設 `OPENAI_TIMEOUT` 但設有 `APP_API_TIMEOUT=9000` 時，OpenAI 呼叫也會退回為 9 秒，對推理模型而言偏緊。
+- 處理 OpenAI 空訊息例外（`fa765cb`）：當模型回應的 `content` 與 `refusal` 皆為 `null` 時，拋出具體可讀錯誤（`OpenAI returned an empty message`），避免靜默無回覆或讓使用者遇到未預期的例外。
+- 修正 OpenAI 模型拒答與空選項崩潰（`fe69ef2`）：當模型拒答（`choice.message.content` 為 `null`，文字在 `refusal`）時直接回傳拒答內容，修復過去因 `content.trim()` 拋出 `TypeError: Cannot read properties of null` 的問題；當 `choices` 陣列為空時拋出明確可讀錯誤。
+- 修正設定值為 0 被預設值覆蓋問題（`ebadd58`）：`config/index.js` 新增 `numberOr` 解析，修復 `OPENAI_COMPLETION_TEMPERATURE=0` 或 `OPENAI_COMPLETION_PRESENCE_PENALTY=0` 因 `Number(env) || fallback` 被誤判為 falsy 而遭預設值（1 與 0.6）覆蓋的瑕疵，確保確定性輸出（temperature 為 0）可正常生效。
+- 修正 LINE 長訊息切分拆開 emoji 代理對問題（`c29f00a`）：`utils/split-line-text.js` 在切分長文字訊息或計算截斷保留長度時，若切點落在 UTF-16 surrogate pairs 中間則往前退一字元，避免序列化後產生孤立代理字元導致 LINE Messaging API 400 整則拒收或顯示亂碼。
+- 補強 IPv6 SSRF 防護（`22ecd8f`）：`utils/is-private-ip.js` 改為將 IPv6 展開成 8 個 16-bit 數值判斷，擋下 `http://[::ffff:127.0.0.1]/` 等十六進位 mapped（`::ffff:7f00:1`）繞過，以及 IPv4-compatible、NAT64、6to4、site-local、multicast 與文件用保留位址，避免私有位址或雲端 metadata（如 `::ffff:a9fe:a9fe`）被判定為 public 放行。
+- 依賴安全漏洞修補與 scoped override（`5da9f88`）：修復 lockfile 傳遞依賴弱點，升級 `proxy-addr` 至 2.0.8（critical）、`follow-redirects` 至 1.16.1（high），並更新 `body-parser`、`undici`、`ip-address`、`content-type` 與 `qs`；針對 `@vercel/cli-config` 釘死舊版 zod 問題，在 `package.json` 加入限定於 `@vercel/cli-config` 的 `zod: 4.6.7` override 以收斂掃描器警示，同時在 `docs/DECISIONS.md` 記錄套件打包範圍與實際執行期可達性分析。
+- 上游檢查器擴充 PR 與 Issue 面向檢查（`920a237`）：`tools/check-upstream-updates.js` 與 GitHub Actions workflow 補齊以 `gh <pr|issue> list --repo <repo> --state all` 收集上游 PR 與 Issue 並比對 baseline（`reviewedPrThrough`、`reviewedIssueThrough`）；當 `gh` 無法使用時回傳 null 並使 `needs_attention` 與 exit code 2 fail closed，補齊離線契約測試。
+- LINE 長回覆切分與 SerpAPI location 驗證（`632d3ef`）：依上游 issue 盤點結果，新增 `utils/split-line-text.js` 自動將超過 LINE 5000 字元上限的回覆依段落、換行、句號智慧切分，超過單次 5 則上限時補上截斷提示，避免因 LINE 400 導致整則拒收；`services/serpapi.js` 在送出前驗證 `SERPAPI_LOCATION` 為合法 ISO 3166-1 alpha-2 國家代碼，避免使用者輸入國名收到 SerpAPI 原始 400 錯誤。
+- 支援 GPT-5 系列 reasoning 模型參數分流（`45d8876`）：引用上游 PR #365，Chat Completions 對 `gpt-5*` 模型自動將 token 上限參數切換為 `max_completion_tokens`（取代 `max_tokens`），並排除不支援的 `frequency_penalty` 與 `presence_penalty`，避免 API 回傳 400 錯誤；其餘模型維持既有參數結構。
 
 - 依賴新鮮度歸零：宣告範圍內的 `axios` 1.20.0、`express-rate-limit` 8.7.0、`opencc-js` 1.4.2；exact pin 的 `jest`／`babel-jest`／`@jest/globals` 30.4→30.5.0（三者必須同版）與 `eslint` 10.9.0→10.9.1。升級後 `npx eslint .` 全綠、`npm run test:module-load` 通過、609 個 jest 測試全數通過。Babel 7→8 的暫緩隨這次 Jest 升版一併複驗：`@jest/transform@30.5.0` 仍直接依賴 `@babel/core ^7.27.4`，卡點未變，理由已更新版本號。
 
