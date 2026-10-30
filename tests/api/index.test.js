@@ -68,6 +68,8 @@ const load = async ({
         : null,
       REMINDER_WORKER_MAX_JOBS: 20,
       REMINDER_WORKER_TIME_BUDGET_MS: 45000,
+      WORKER_MAX_JOBS: 10,
+      WORKER_TIME_BUDGET_MS: 45000,
     },
   }));
   jest.doMock('../../middleware/index.js', () => ({ validateLineSignature: jest.fn() }));
@@ -141,6 +143,7 @@ test('durable events are acknowledged before background drain finishes', async (
 
   expect(res.sendStatus).toHaveBeenCalledWith(200);
   expect(runAfterResponse).toHaveBeenCalledTimes(1);
+  expect(drainQueue).toHaveBeenCalledWith({ maxDurationMs: 45000 });
   finishDrain({ claimed: 1, done: 1 });
   await runAfterResponse.mock.calls[0][0];
 });

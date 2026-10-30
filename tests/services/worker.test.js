@@ -307,3 +307,34 @@ test('drainQueue stops before claiming another job when its time budget is exhau
   expect(claimNextJob).toHaveBeenCalledTimes(1);
   now.mockRestore();
 });
+
+test('webhook drain stops within budget and leaves remaining jobs in the queue when consecutive jobs stall', async () => {
+  let currentTime = 1000;
+  const now = jest.spyOn(Date, 'now').mockImplementation(() => currentTime);
+  const queue = [
+    lineJob({ id: 'j1' }),
+    lineJob({ id: 'j2' }),
+    lineJob({ id: 'j3' }),
+  ];
+  const { drainQueue } = await load();
+  claimNextJob.mockImplementation(async () => queue.shift() || null);
+  runJob.mockImplementation(async () => {
+    currentTime += 25000;
+    return 'pending';
+  });
+
+  const summary = await drainQueue();
+
+  expect(summary).toEqual({
+    claimed: 2,
+    done: 0,
+    retried: 2,
+    dead: 0,
+    stale: 0,
+    budgetExhausted: true,
+  });
+  expect(queue).toHaveLength(1);
+  expect(queue[0].id).toBe('j3');
+  expect(claimNextJob).toHaveBeenCalledTimes(2);
+  now.mockRestore();
+});

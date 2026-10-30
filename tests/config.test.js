@@ -28,6 +28,15 @@ test('reminds one day before by default', async () => {
   expect(config.REMINDER_OFFSETS).toEqual([1440]);
 });
 
+test('defaults WORKER_TIME_BUDGET_MS to 45000', async () => {
+  delete process.env.WORKER_TIME_BUDGET_MS;
+  jest.resetModules();
+
+  const { default: config } = await import('../config/index.js');
+
+  expect(config.WORKER_TIME_BUDGET_MS).toBe(45000);
+});
+
 test('uses a supported cost-conscious image model by default', async () => {
   delete process.env.OPENAI_IMAGE_GENERATION_MODEL;
   delete process.env.OPENAI_IMAGE_GENERATION_QUALITY;

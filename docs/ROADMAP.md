@@ -10,7 +10,6 @@
 ## 近期：可以直接動手
 | 項目 | 為什麼 | 驗收方式 | 建議執行者 | 證據 |
 | --- | --- | --- | --- | --- |
-| LINE webhook 背景 drain 加時間預算 | `/cron/reminders` 已用 `REMINDER_WORKER_TIME_BUDGET_MS` 限時，webhook 路徑的 `drainQueue()` 沒傳 `maxDurationMs`；多個 job 連續卡住時總時間可能超過 Vercel 60 秒 | 新增測試：模擬連續卡住的 job，webhook drain 在預算內停止並回報 `budgetExhausted: true`，剩餘 job 留在 queue；`npx eslint .`、`npm test` 綠 | Claude Sonnet | `api/index.js:166`（無預算）對照 `api/index.js:130-132`；`services/worker.js:143-157` |
 | 決定 `系統 部署` 指令的授權邊界 | 任何能和 bot 對話的 LINE 使用者都能觸發 `VERCEL_DEPLOY_HOOK_URL`；另外沒設 hook 時只推錯誤訊息、仍照樣呼叫 `deploy()` | `DECISIONS.md` 有一筆決定（限定擁有者／預設關閉／維持現狀三選一＋理由）；若改程式：非授權使用者觸發時不呼叫 `services/vercel.js` 的測試、缺 hook 時提早 return 的測試都通過 | Claude Opus | `app/handlers/deploy.js:11`、`app/handlers/deploy.js:20-21`；`app/app.js:34`（無授權檢查即進 handler） |
 | 發下一個 6.x 版本 | 讓上面的修正進到正式環境；Preview → staging 的驗證路徑已打通 | Preview 部署連 staging 的 `/` 回 `status: OK` 且版本號為新版；Production 部署後 `/health/live` 回 200；`gh release view -R SanHsien/gpt-ai-assistant` 顯示新 tag。不重新初始化或清空 staging，不拿 Production 資料庫做實驗 | 維護者 | [`DECISIONS.md`](DECISIONS.md) 2026-10-28；版本政策見[`PRODUCT.md`](PRODUCT.md)「版本政策」 |
 

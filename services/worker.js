@@ -144,7 +144,7 @@ export const drainQueue = async ({
   maxJobs = config.WORKER_MAX_JOBS,
   leaseSeconds = config.WORKER_LEASE_SECONDS,
   kinds = null,
-  maxDurationMs = null,
+  maxDurationMs = config.WORKER_TIME_BUDGET_MS,
 } = {}) => {
   const startedAt = Date.now();
   const summary = {

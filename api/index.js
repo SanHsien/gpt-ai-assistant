@@ -163,7 +163,9 @@ app.post(config.APP_WEBHOOK_PATH, validateLineSignature, async (req, res) => {
     res.sendStatus(200);
 
     runAfterResponse((async () => {
-      const summary = await drainQueue();
+      const summary = await drainQueue({
+        maxDurationMs: config.WORKER_TIME_BUDGET_MS,
+      });
       if (config.APP_DEBUG) console.log('drainQueue', summary);
     })().catch((err) => console.error(err.message)));
   } catch (err) {
