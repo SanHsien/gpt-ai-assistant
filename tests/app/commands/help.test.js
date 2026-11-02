@@ -32,8 +32,8 @@ test('builds a grouped complete help message for enabled features', () => {
     '【Google】',
     '【文字處理】',
     '【系統】',
-    '【維護】',
   ].forEach((heading) => expect(help).toContain(heading));
+  expect(help).not.toContain('【維護】');
   expect(help).toContain('範例：天氣 台北');
   expect(help.length).toBeLessThanOrEqual(5000);
 });

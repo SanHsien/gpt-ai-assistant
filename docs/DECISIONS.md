@@ -2,6 +2,18 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-11-02 — LINE 部署指令預設關閉
+
+**決定**：採「預設關閉」。LINE 部署指令（`重新啟動`、`/restart`、`Restart`）對所有使用者與群組停用；即使設定 `VERCEL_DEPLOY_HOOK_URL` 也不開啟，不提供繞過身分檢查的啟用開關。部署由維護者在部署平台操作。
+
+**理由**：目前沒有可信的部署維護者身分契約。能傳訊息給 bot、通過 LINE webhook 簽章或具有個人資料的 owner-scoped key，都不等於有權重新部署整個服務。直接以 hook 存在當成授權會讓任意對話者觸發部署；新增身分儲存或管理介面則超出此次修正所需範圍。先關閉入口可收斂風險，保留既有 service 與設定可供日後有明確授權契約時恢復。
+
+**行為**：指令仍由既有 handler 攔截，避免落入一般聊天；缺 hook 時回覆缺少設定並立即 return，有 hook 時只回覆功能停用。兩條路徑均不呼叫 `services/vercel.js`、不清除對話歷史。指令清單不再宣傳部署入口；不修改外部 hook、憑證或平台安全設定。
+
+**重看條件**：出現可信的部署維護者身分契約（例如由環境變數設定、有測試的 LINE userId allowlist）且維護者同意時，再評估「限定擁有者」。
+
+**驗收**：`tests/deploy.test.js` 覆蓋私聊／群組／聊天室的拒絕路徑、缺 hook 提早返回與其他指令繼續路由；`tests/app/commands/help.test.js` 驗證即使有 hook 也不列出部署入口。這些是本機回歸證據，不代表已部署或完成 Production LINE 驗收。
+
 ## 2026-10-29 — LINE／OpenAI 金鑰暫不從 Preview 隔離，等 Preview 做功能實測時再做
 
 **決定**：維護者同意先不把 LINE channel 憑證與 OpenAI 金鑰從 Vercel Preview 環境隔離。

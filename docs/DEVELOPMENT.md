@@ -63,7 +63,7 @@ webhook 驗簽／DB 冪等／enqueue／快速 ACK
 | `services/openai.js` | OpenAI completion / image generation / vision client |
 | `services/line.js` | LINE Messaging API client（reply、取圖） |
 | `services/serpapi.js` | SerpAPI 搜尋 client（`search` 指令用） |
-| `services/vercel.js` | 觸發 Vercel deploy hook（`deploy` 指令自我重新部署用） |
+| `services/vercel.js` | 保留的 Vercel deploy hook service；LINE 部署指令已停用，即使設有 hook 也不會呼叫它（見 `DECISIONS.md` 2026-11-02） |
 | `services/google-calendar.js` | Google Web OAuth、token refresh、Calendar CRUD 與同步 job |
 | `repositories/` | Supabase Postgres data access；所有 owner boundary 與 transaction 集中在此 |
 | `db/migrations/` / `db/rollbacks/` | `0001`–`0020` schema migration 與 latest-only rollback |
@@ -171,7 +171,7 @@ npm run dev           # nodemon api/index.js，本機起 Express
 1. 在 Vercel 匯入本 repo。
 2. 在 Vercel 專案設定環境變數（至少 `OPENAI_API_KEY`、`LINE_CHANNEL_ACCESS_TOKEN`、`LINE_CHANNEL_SECRET`）。
 3. 部署後取得 URL，把 `{URL}{APP_WEBHOOK_PATH}`（預設 `/webhook`）設為 LINE channel 的 webhook URL。
-4. `deploy` 指令可透過 `VERCEL_DEPLOY_HOOK_URL` 觸發重新部署（選用）。
+4. LINE 部署指令已停用（見 DECISIONS.md 2026-11-02）；設了 `VERCEL_DEPLOY_HOOK_URL` 也不會由 LINE 觸發，重新部署請在 Vercel 操作。
 
 ### 完整上線順序
 

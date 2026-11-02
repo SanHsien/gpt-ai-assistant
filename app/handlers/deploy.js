@@ -1,8 +1,6 @@
 import config from '../../config/index.js';
 import { t } from '../../locales/index.js';
-import deploy from '../../services/vercel.js';
 import { COMMAND_SYS_DEPLOY } from '../commands/index.js';
-import { updateHistory } from '../history/index.js';
 
 /**
  * @param {import('../context.js').default} context
@@ -16,14 +14,12 @@ const check = (context) => context.hasCommand(COMMAND_SYS_DEPLOY);
  */
 const exec = (context) => check(context) && (
   async () => {
-    updateHistory(context.id, (history) => history.erase());
-    if (!config.VERCEL_DEPLOY_HOOK_URL) context.pushText(t('__ERROR_MISSING_ENV')('VERCEL_DEPLOY_HOOK_URL'));
-    try {
-      await deploy();
-      context.pushText(COMMAND_SYS_DEPLOY.reply);
-    } catch (err) {
-      context.pushError(err);
+    if (!config.VERCEL_DEPLOY_HOOK_URL) {
+      context.pushText(t('__ERROR_MISSING_ENV')('VERCEL_DEPLOY_HOOK_URL'));
+      return context;
     }
+    // 尚無可信的部署維護者身分契約；設定 hook 不代表授權 LINE 使用者部署。
+    context.pushText(t('__ERROR_FEATURE_DISABLED'));
     return context;
   }
 )();

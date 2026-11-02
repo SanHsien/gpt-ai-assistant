@@ -25,7 +25,6 @@ export const buildCommandHelp = (features = config) => {
     t('__TEXT_COMMAND_HELP_TEXT'),
     t('__TEXT_COMMAND_HELP_SYSTEM'),
   );
-  if (features.VERCEL_DEPLOY_HOOK_URL) lines.push(t('__TEXT_COMMAND_HELP_DEPLOY'));
   lines.push('', t('__TEXT_COMMAND_HELP_FOOTER'));
 
   return lines.join('\n');

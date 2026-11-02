@@ -6,11 +6,11 @@
 ## 現況
 自架的 LINE × OpenAI 個人助理（行程、任務、提醒、Google Calendar／Tasks、天氣、搜尋），最新 release 是 `v6.1.0`（2026-07-29）。2026-10-29 查 `main`：open issue 0、open PR 0、Dependabot 與 code scanning open alert 皆 0，CI／CodeQL／Dependabot guarded merge 最近一次 success，「上游更新檢查」2026-10-26 排程 success（查法：`gh issue list -R SanHsien/gpt-ai-assistant`、`gh api repos/SanHsien/gpt-ai-assistant/dependabot/alerts?state=open`、`gh run list -R SanHsien/gpt-ai-assistant -b main`）。
 `v6.1.0` 之後累積的修正已整理補齊至 `CHANGELOG.md` `[Unreleased]`，待完成近期項目後發版；Preview 已能連 staging 通過 runtime preflight（[`DECISIONS.md`](DECISIONS.md) 2026-10-28）。
+2026-11-02 本機實作已將 LINE 部署指令預設關閉（即使設有 hook 也不開啟），授權決定與理由見 [`DECISIONS.md`](DECISIONS.md) 同日紀錄；尚未部署。
 
 ## 近期：可以直接動手
 | 項目 | 為什麼 | 驗收方式 | 建議執行者 | 證據 |
 | --- | --- | --- | --- | --- |
-| 決定 `系統 部署` 指令的授權邊界 | 任何能和 bot 對話的 LINE 使用者都能觸發 `VERCEL_DEPLOY_HOOK_URL`；另外沒設 hook 時只推錯誤訊息、仍照樣呼叫 `deploy()` | `DECISIONS.md` 有一筆決定（限定擁有者／預設關閉／維持現狀三選一＋理由）；若改程式：非授權使用者觸發時不呼叫 `services/vercel.js` 的測試、缺 hook 時提早 return 的測試都通過 | Claude Opus | `app/handlers/deploy.js:11`、`app/handlers/deploy.js:20-21`；`app/app.js:34`（無授權檢查即進 handler） |
 | 發下一個 6.x 版本 | 讓上面的修正進到正式環境；Preview → staging 的驗證路徑已打通 | Preview 部署連 staging 的 `/` 回 `status: OK` 且版本號為新版；Production 部署後 `/health/live` 回 200；`gh release view -R SanHsien/gpt-ai-assistant` 顯示新 tag。不重新初始化或清空 staging，不拿 Production 資料庫做實驗 | 維護者 | [`DECISIONS.md`](DECISIONS.md) 2026-10-28；版本政策見[`PRODUCT.md`](PRODUCT.md)「版本政策」 |
 
 ## 中期：等條件成立再做
