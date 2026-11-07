@@ -1,17 +1,16 @@
 # 路線圖
 
 > 本 repo 後續工作的單一真相源。做完一項，就在同一個 commit 刪掉那一列；新工作只加在這裡。
-> 現況段的數字是 2026-11-08 依 `main` `cfa2358` 查的快照，開工前先重查 GitHub。
+> 現況段的數字是 2026-11-08 依 `main` `bc95b0d` 查的快照，開工前先重查 GitHub。
 
 ## 現況
-自架的 LINE × OpenAI 個人助理（行程、任務、提醒、Google Calendar／Tasks、天氣、搜尋），最新 release 是 `v6.1.0`（2026-07-29）。2026-10-29 查 `main`：open issue 0、open PR 0，CI／CodeQL／Dependabot guarded merge 最近一次 success，「上游更新檢查」2026-10-26 排程 success；2026-11-08 查 Dependabot 唯一 open alert 是 #109（deepmerge，low，僅 dev，無修補版，已決定 dismiss，見下方 deepmerge 列）、code scanning open alert 0（查法：`gh issue list -R SanHsien/gpt-ai-assistant`、`gh api repos/SanHsien/gpt-ai-assistant/dependabot/alerts?state=open`、`gh run list -R SanHsien/gpt-ai-assistant -b main`）。
-`v6.1.0` 之後累積的修正已切成 `CHANGELOG.md` 的 `[6.2.0] - 2026-11-08`（版號改為 6.2.0 尚未推送、未打 tag；其中 `[Unreleased]` 的程式碼因 Vercel 每次推 `main` 都部署 Production，已在 Production 上，只有版本標示仍是 6.1.0；決定見 [`DECISIONS.md`](DECISIONS.md) 2026-11-08）；Preview 已能連 staging 通過 runtime preflight（[`DECISIONS.md`](DECISIONS.md) 2026-10-28）。
-2026-11-02 本機實作已將 LINE 部署指令預設關閉（即使設有 hook 也不開啟），授權決定與理由見 [`DECISIONS.md`](DECISIONS.md) 同日紀錄；該程式碼已隨推 `main` 部署到 Production（2026-11-08 回報：Production `/` 目前回 `6.1.0`）。
+自架的 LINE × OpenAI 個人助理（行程、任務、提醒、Google Calendar／Tasks、天氣、搜尋），最新 release 是 `v6.2.0`（2026-11-08，tag 指向 `bc95b0d`）。2026-10-29 查 `main`：open issue 0、open PR 0，CI／CodeQL／Dependabot guarded merge 最近一次 success，「上游更新檢查」2026-10-26 排程 success；2026-11-08 查 Dependabot 唯一 open alert 是 #109（deepmerge，low，僅 dev，無修補版，2026-11-08 已依 DECISIONS dismiss，見下方 deepmerge 列；2026-11-08 再查 open alert 0）、code scanning open alert 0（查法：`gh issue list -R SanHsien/gpt-ai-assistant`、`gh api repos/SanHsien/gpt-ai-assistant/dependabot/alerts?state=open`、`gh run list -R SanHsien/gpt-ai-assistant -b main`）。
+`v6.1.0` 之後累積的修正已發佈為 `v6.2.0`（`CHANGELOG.md` `[6.2.0] - 2026-11-08`；決定見 [`DECISIONS.md`](DECISIONS.md) 2026-11-08）；2026-11-08 查 Production `/` 回 `status: OK`、`currentVersion: 6.2.0`，`/health/live` 回 200；Preview 已能連 staging 通過 runtime preflight（[`DECISIONS.md`](DECISIONS.md) 2026-10-28）。
+2026-11-02 本機實作已將 LINE 部署指令預設關閉（即使設有 hook 也不開啟），授權決定與理由見 [`DECISIONS.md`](DECISIONS.md) 同日紀錄；該程式碼已隨推 `main` 部署到 Production。
 
 ## 近期：可以直接動手
 | 項目 | 為什麼 | 驗收方式 | 建議執行者 | 證據 |
 | --- | --- | --- | --- | --- |
-| 推送並發佈 `6.2.0` | 讓版本標示與已在 Production 的修正一致；版號與 `CHANGELOG.md` 已在 worktree 切好（[`DECISIONS.md`](DECISIONS.md) 2026-11-08）。Vercel 每次推 `main` 就部署 Production，不需維護者進主控台 | 推到 `main` 並等 Production 部署完成後：Production `/` 回 `status: OK` 且 `currentVersion` 為 `6.2.0`；`/health/live` 回 200；之後 `gh release create v6.2.0 -R SanHsien/gpt-ai-assistant`，`gh release view -R SanHsien/gpt-ai-assistant` 顯示新 tag。不重新初始化或清空 staging，不拿 Production 資料庫做實驗 | 協調者 | [`DECISIONS.md`](DECISIONS.md) 2026-11-08；`package.json:3`；`CHANGELOG.md` `[6.2.0]` |
 
 ## 中期：等條件成立再做
 | 項目 | 觸發條件 | 驗收方式 | 建議執行者 | 證據 |
