@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [6.2.0] - 2026-11-08
+
 - LINE 部署指令預設關閉：即使設有 `VERCEL_DEPLOY_HOOK_URL`，所有對話者也只收到停用回覆，不觸發部署或清除對話歷史；缺 hook 時立即返回。指令清單移除部署入口，維護者改由部署平台操作；保留 service 與設定，外部平台設定不變。
 - LINE webhook 背景 drain 加時間預算：`api/index.js` 與 `services/worker.js` 的 `drainQueue` 支援 `WORKER_TIME_BUDGET_MS`（預設 45000 毫秒）；當多個 job 連續卡住或慢速執行時，在預算耗盡後停止繼續領取並回報 `budgetExhausted: true`，剩餘 job 留在佇列中。預算只限制繼續領取：最壞情況為預算加上單筆 job 時長，被平台逾時砍掉的 job 由既有 lease 與 checkpoint 重試兜底。
 - 補強網址摘要的 SSRF 防護：拒絕 IPv4-translated（`::ffff:0:0:0/96`）與 discard-only（`100::/64`）位址，涵蓋 IPv6 縮寫、完整與 URL 正規化形式；新增保留段邊界及相鄰位址回歸測試。

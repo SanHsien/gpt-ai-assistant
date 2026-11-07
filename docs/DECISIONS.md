@@ -2,6 +2,15 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-11-08 — 下一版定為 6.2.0；Dependabot #109 改為 dismiss（取代 2026-11-07 的「保持開啟」）
+
+**版本決定**：下一版是 `6.2.0`（不是 `6.1.1`）。`[Unreleased]` 內含新增的環境變數 `WORKER_TIME_BUDGET_MS`（背景 drain 時間預算）、外部 API 預設逾時、SSRF 防護補強與 LINE 長訊息切分，屬向後相容的功能與可靠性改善，依 [`PRODUCT.md`](PRODUCT.md)「版本政策」留在 `6.x` 且不是 major。LINE 部署指令預設關閉（2026-11-02 決定）是行為收斂，但沒有要求部署者處理的設定變更，不構成 major。
+**已在 worktree 完成**：`package.json`／`package-lock.json` 版號 `6.2.0`、`CHANGELOG.md` 的 `[Unreleased]` 切出 `[6.2.0] - 2026-11-08`。推送 `main` 會讓 Vercel 直接部署 Production（沒有 Preview 閘門）；推送與 `gh release create` 屬對外寫入，由協調者執行（驗收見 [`ROADMAP.md`](ROADMAP.md) 近期列）。
+**重審條件**：推送後 Production 的 `/` 不回 `status: OK`、版本號不是 `6.2.0` 或 `/health/live` 非 200，就不打 tag，回頭查原因（必要時在 Vercel 回復上一個部署）。
+
+**#109 決定**：`deepmerge`（GHSA-gcqx-w48m-w2h4，low）dismiss，理由 `tolerable_risk`。2026-11-07 不 dismiss 的唯一理由是「沒有逐一稽核其他呼叫點」；2026-11-08 補查：`npm ls deepmerge --omit=dev` 回 `(empty)`，即 `deepmerge` 只經 `jest` → `@jest/core` → `jest-config` 進入 devDependencies，不在執行期（Vercel 部署）依賴樹；`first_patched_version` 仍為 null、`npm view deepmerge version` 仍為 4.3.1，沒有可釘的修補版。保持開啟不會驅動任何動作（既無修補可套用、也不影響 Production），所以 dismiss；追蹤改靠 [`ROADMAP.md`](ROADMAP.md) 的 `deepmerge` 列。
+**重審條件**：`deepmerge` 發出 > 4.3.1 的修補版，或 `deepmerge` 出現在 `npm ls deepmerge --omit=dev`（成為執行期依賴）。
+
 ## 2026-11-07 — Dependabot #109（deepmerge，GHSA-gcqx-w48m-w2h4）無修補版，不動 manifest／lock、不 dismiss
 
 **現況**：公告（CVE-2026-93753，low，2026-09-18 發布）的 `vulnerable_version_range` 為 `>= 4.2.0, <= 4.3.1`，`first_patched_version` 為 null。lockfile 只有一份 `deepmerge@4.3.1`，唯一的直接依賴者是 `jest-config@30.5.2`（`^4.3.1`），經 `jest@30.5.2` → `@jest/core`／`jest-cli` → `jest-config` 進入，即 dev-only，不進 runtime。
