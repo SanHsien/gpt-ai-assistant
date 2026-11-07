@@ -2,6 +2,17 @@
 
 本專案的重要決策紀錄（新到舊）。每筆記：日期、決定、理由。與 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的「怎麼做」互補，這裡記「為什麼」。
 
+## 2026-11-07 — Dependabot #109（deepmerge，GHSA-gcqx-w48m-w2h4）無修補版，不動 manifest／lock、不 dismiss
+
+**現況**：公告（CVE-2026-93753，low，2026-09-18 發布）的 `vulnerable_version_range` 為 `>= 4.2.0, <= 4.3.1`，`first_patched_version` 為 null。lockfile 只有一份 `deepmerge@4.3.1`，唯一的直接依賴者是 `jest-config@30.5.2`（`^4.3.1`），經 `jest@30.5.2` → `@jest/core`／`jest-cli` → `jest-config` 進入，即 dev-only，不進 runtime。
+
+**Dependabot 失敗原因**：2026-11-03 的 security update job（run 41626813708）記錄 `Dependabot can't find a published or compatible non-vulnerable version for deepmerge. The latest available version is 4.3.1`，錯誤類型為 `security_update_not_found`。不是設定或 lockfile 問題，而是沒有可升的目標版本；上游出修補版之前，每次重跑都會再失敗。
+
+**為什麼沒有可用的 override／升級**：`npm view deepmerge version` 與 dist-tag `latest` 都是 4.3.1（最後發布 2023-03-16）；`npm audit` 唯一的 fixAvailable 是把 `jest` 降到 25.1.0（major 降級，不可行）。沒有比 4.3.1 新的版本可釘。
+
+**決定**：不改 `package.json`／`package-lock.json`，告警保持開啟，不以「用不到」dismiss。`jest-config` 以 `deepmerge.all` 合併本機的 Jest 設定物件，輸入由本 repo 控制，實務風險低，但沒有逐一稽核其他呼叫點，所以不 dismiss。
+**重審條件**：`deepmerge` 發出 > 4.3.1 的修補版，或 `jest-config` 不再依賴它（後續追蹤見 [`ROADMAP.md`](ROADMAP.md) 的 `deepmerge` 列）。
+
 ## 2026-11-02 — LINE 部署指令預設關閉
 
 **決定**：採「預設關閉」。LINE 部署指令（`重新啟動`、`/restart`、`Restart`）對所有使用者與群組停用；即使設定 `VERCEL_DEPLOY_HOOK_URL` 也不開啟，不提供繞過身分檢查的啟用開關。部署由維護者在部署平台操作。
